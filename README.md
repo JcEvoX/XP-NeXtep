@@ -36,6 +36,19 @@ The project primarily targets **OnePlus PLK110**, previously verified on **Andro
 
 [Watch the NeXtep demo on Bilibili](https://www.bilibili.com/video/BV1iKHj6fEtL)
 
+## What's new in 1.2.1
+
+- **Rewritten navigation-button adaptation:** adds a “虚拟按键适配” (Navigation-button adaptation) switch, improving workspace layout and navigation-bar display with three-button navigation.
+- **Both landscape orientations:** keeps the control area at the phone's physical top while the main-window app rotates with the landscape direction.
+- **App strip recovery:** fixes app icons occasionally disappearing and requiring a switch between automatic and manual ordering to return.
+- **Keyboard focus during window switches:** improves focus handoff between the main window and slots, reducing cases where the keyboard fails to appear, opens unexpectedly, or covers slots.
+- **Slot swipe dismissal:** fixes old previews or colored blocks briefly flashing when a slot app is swiped to the background.
+- **Native floating windows:** improves layering and switching animations, reducing cases where workspace controls are obscured or briefly disappear.
+- **Assistant-panel fullscreen recovery:** fixes the assistant panel failing to return to fullscreen after closing the workspace through the system Control Center.
+- **Lock and unlock recovery:** pauses slot output while locked, then restores display output after unlocking while retaining existing tasks.
+- **Reduced runtime overhead:** reduces repeated task queries and unnecessary background checks, and stops related monitoring when the workspace closes.
+- **Media card layout:** adjusts artwork size in smaller control areas to reduce content clipping.
+
 ## What's new in 1.2.0
 
 - **Swipe slot apps to the background:** swipe left on left-side slots or right on right-side slots. A Settings switch is enabled by default; the existing option to long-press and drag a slot to the top control area remains available.
@@ -93,7 +106,7 @@ The diagram below shows how the regular APK process coordinates with the LSPosed
 - **Remembers eligible slot tasks** across workspace sessions and preserves the workspace during lock/unlock.
 - **Customizes top content and background**, with icon, clock, date, blank and text modes, looping text, system fonts, text size, bold styling, and adjustable wallpaper blur.
 - **Coexists with native floating windows**, keeping them above workspace panels.
-- **Automatically reserves system navigation space**, fitting the main window and slots to the reported safe area and updating after navigation or rotation changes without a manual switch.
+- **Supports navigation-button adaptation**, fitting the main window and slots to the system navigation-bar boundaries when enabled. Rotation uses the corresponding layout; after changing the system navigation mode, toggle the adaptation option off and on again.
 - **Applies compatibility hooks defensively** and fails open when a supported target cannot be resolved.
 
 ## Requirements
@@ -141,6 +154,7 @@ With the workspace open, manage tasks as follows:
 - **Status-bar gesture:** enabled by default and can be disabled independently. The Control Center tile remains available.
 - **Swipe slot apps to the background:** enabled by default and takes effect when changed. Disable it to keep slot apps from being parked by outward swipes; dragging to the control area remains available.
 - **Park the previous main app when switching:** disabled by default; when enabled, switching apps from the top strip moves the previous main app into an empty slot, or switches normally if none is available.
+- **Navigation-button adaptation:** disabled by default. Enable it for three-button navigation and disable it for gesture navigation. After changing the system navigation mode, toggle this option off and on again.
 - **Top content:** select NeXtep Icon, time, date and weekday, blank, or custom text. Selections take effect immediately. The seconds switch appears beside the time option.
 - **Custom text:** the input and Save text button appear only in text mode. Input is remembered when switching modes; press Save text to apply edits. Select NeXtep Icon to return to the default.
 - **Looping text:** off by default. When enabled, both short and long text scroll continuously; when disabled, text is centered and overflow is ellipsized. Scrolling pauses while the workspace is hidden.
@@ -150,7 +164,7 @@ With the workspace open, manage tasks as follows:
 
 ## Project status
 
-The current source version is **1.2.0** (`versionCode = 8`), focusing on slot interactions, app clone support, navigation-bar adaptation, media controls, and interaction stability. Partial device testing has been performed on **OnePlus PLK110 running Android 17 / ColorOS 17**, without covering every app or edge case; other devices and ROMs still require separate adaptation.
+The current source version is **1.2.1** (`versionCode = 9`), focusing on navigation-button adaptation, both landscape orientations, keyboard focus handoff, assistant-panel fullscreen recovery, and workspace stability. Partial device testing has been performed on **OnePlus PLK110 running Android 17 / ColorOS 17**, without covering every app or edge case; other devices and ROMs still require separate adaptation.
 
 Updates are downloaded through the browser and are not installed automatically. No compatibility promise is made for untested releases or devices. Local recordings, extracted OEM packages, logs, and device dumps used during development are intentionally excluded from the repository.
 

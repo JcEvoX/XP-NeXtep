@@ -10,7 +10,7 @@ class FixedOrientationAspectRatioHooker : XposedInterface.Hooker {
         val context = findContext(chain.thisObject) ?: return chain.proceed()
         val aspectRatio = SystemServerWorkspaceBridge.activePhysicalAspectRatio(context)
             ?: return chain.proceed()
-        NeXtepLog.info("fixed_orientation_aspect", "Using physical aspectRatio=$aspectRatio")
+        NeXtepLog.info("fixed_orientation_aspect", "Using recorded usable aspectRatio=$aspectRatio")
         return aspectRatio
     }
 

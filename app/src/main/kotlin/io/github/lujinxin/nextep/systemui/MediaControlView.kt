@@ -95,6 +95,16 @@ class MediaControlView(
         renderNoMedia()
     }
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        if (MeasureSpec.getMode(heightMeasureSpec) != MeasureSpec.UNSPECIFIED) {
+            val artworkSize = minOf(dp(46),
+                (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(1))
+            artwork.layoutParams.width = artworkSize
+            artwork.layoutParams.height = artworkSize
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+
     fun setWorkspaceVisible(visible: Boolean) {
         if (visible) startListening() else stopListening()
     }

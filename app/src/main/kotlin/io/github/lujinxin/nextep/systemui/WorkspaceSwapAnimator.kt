@@ -24,7 +24,6 @@ internal class WorkspaceSwapAnimator(private val context: Context) {
     private var overlay: SwapPreviewView? = null
     private var animator: ValueAnimator? = null
     private var generation = 0
-
     fun animate(
         source: Bitmap?, target: Bitmap?,
         start: RectF, sourceBounds: RectF, targetBounds: RectF,
@@ -77,12 +76,13 @@ internal class WorkspaceSwapAnimator(private val context: Context) {
                         cancel()
                     }.isSuccess
                     if (!moved || generation != token) return
-                    preview.postDelayed({
-                        if (generation != token) return@postDelayed
+                    fun reveal() {
+                        if (generation != token) return
                         preview.animate().alpha(0f).setDuration(160L).withEndAction {
                             if (generation == token) cancel()
                         }.start()
-                    }, 300L)
+                    }
+                    preview.postDelayed({ reveal() }, 300L)
                 }
             })
             start()

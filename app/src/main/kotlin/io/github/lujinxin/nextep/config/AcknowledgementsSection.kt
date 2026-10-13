@@ -35,17 +35,16 @@ internal object AcknowledgementsSection {
                 isSingleLine = false
                 chipSpacingHorizontal = dp(6)
                 chipSpacingVertical = dp(4)
-                names.forEachIndexed { index, name ->
+                var previousColorIndex = -1
+                names.forEach { name ->
+                    val preferredColorIndex = Math.floorMod(name.hashCode(), pastelColors.size)
+                    val colorIndex = if (preferredColorIndex == previousColorIndex) {
+                        (preferredColorIndex + 1) % pastelColors.size
+                    } else preferredColorIndex
+                    previousColorIndex = colorIndex
                     addView(LinearLayout(activity).apply {
                         orientation = LinearLayout.HORIZONTAL
                         gravity = Gravity.CENTER_VERTICAL
-                        if (index > 0) addView(TextView(activity).apply {
-                            text = "●"
-                            textSize = 8f
-                            setTextColor(SettingsPalette.secondary(activity))
-                            setPadding(0, 0, dp(4), 0)
-                            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-                        })
                         addView(TextView(activity).apply {
                             text = name
                             textSize = 12f
@@ -56,8 +55,8 @@ internal object AcknowledgementsSection {
                             setTextColor(Color.rgb(35, 53, 64))
                             background = GradientDrawable().apply {
                                 cornerRadius = dp(100).toFloat()
-                                // Stable per ID, so colors remain calm when reopening the page.
-                                setColor(pastelColors[Math.floorMod(name.hashCode(), pastelColors.size)])
+                                // Stable for the same list, with no repeated neighboring color.
+                                setColor(pastelColors[colorIndex])
                             }
                         })
                     })
@@ -69,5 +68,9 @@ internal object AcknowledgementsSection {
     private val pastelColors = intArrayOf(
         Color.rgb(218, 235, 247), Color.rgb(223, 239, 222), Color.rgb(250, 233, 208),
         Color.rgb(237, 225, 247), Color.rgb(249, 224, 231), Color.rgb(215, 239, 236),
+        Color.rgb(248, 242, 204), Color.rgb(220, 226, 249), Color.rgb(248, 220, 206),
+        Color.rgb(230, 241, 207), Color.rgb(245, 218, 240), Color.rgb(208, 238, 246),
+        Color.rgb(238, 228, 211), Color.rgb(223, 216, 247), Color.rgb(211, 237, 218),
+        Color.rgb(249, 232, 218),
     )
 }

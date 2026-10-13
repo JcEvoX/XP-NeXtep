@@ -113,8 +113,21 @@ class NeXtepWindowController(
     }
 
     fun resumeAfterLock(): WorkspaceGeometry {
+        check(records.size == EXPECTED_WINDOW_COUNT) { "Retained SystemUI windows are unavailable" }
         suspended = false
-        val geometry = show()
+        // Wake reuses attached windows and the recorded layout. Re-running show()
+        // starts a fresh alpha=0 entry animation and repeats all display setup.
+        val geometry = geometry()
+        applyWindowGeometry(geometry)
+        sidebarView?.let { applySlotLayout(it, geometry) }
+        records.forEach { record ->
+            record.view.animate().cancel()
+            record.view.visibility = View.VISIBLE
+            record.view.alpha = 1f
+            record.view.translationX = 0f
+            record.view.translationY = 0f
+        }
+        topAppStrip?.setWorkspaceVisible(true)
         slotCoordinator?.setSuspended(false)
         return geometry
     }
@@ -194,6 +207,10 @@ class NeXtepWindowController(
 
     fun currentGeometry(refreshViewport: Boolean = false): WorkspaceGeometry =
         viewport.geometry(sidebarSide, refreshViewport)
+
+    fun setNavigationButtonsEnabled(enabled: Boolean) {
+        viewport.setNavigationButtonsEnabled(enabled)
+    }
 
     fun setSlotBackgroundSwipeEnabled(enabled: Boolean) {
         if (slotBackgroundSwipeEnabled == enabled) return
@@ -372,12 +389,6 @@ class NeXtepWindowController(
             this.title = title
         }
         val hostedView = if (title == "NeXtepContentPanel") view else WorkspacePanelHost(context, view)
-        if (title == "NeXtepContentPanel") {
-            hostedView.setOnApplyWindowInsetsListener { _, insets ->
-                viewport.onFullWindowInsets(insets)
-                insets
-            }
-        }
         val record = WindowRecord(hostedView, title)
         configureWindow(record, params, geometry())
         hostedView.visibility = View.GONE
@@ -397,7 +408,7 @@ class NeXtepWindowController(
             configureWindow(record, params, geometry)
             windowManager.updateViewLayout(record.view, params)
         }
-        topAppStrip?.setLandscape(geometry.isLandscape)
+        topAppStrip?.setLandscape(geometry.isLandscape, geometry.isControlOnLeft)
     }
 
     private fun configureWindow(
@@ -416,7 +427,7 @@ class NeXtepWindowController(
             params.flags or WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER
         } else params.flags and WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER.inv()
         params.setWallpaperTouchEventsEnabled(false)
-        (record.view as? WorkspacePanelHost)?.landscape = geometry.isLandscape
+        (record.view as? WorkspacePanelHost)?.panelRotationDegrees = geometry.panelRotationDegrees
         // WorkspaceGeometry explicitly reserves navigation space in display coordinates.
         // FLAG_LAYOUT_IN_SCREEN alone does not disable inset fitting: a bottom navigation
         // inset can make WindowManager shift the entire full-height sidebar upward.
@@ -568,36 +579,21 @@ class NeXtepWindowController(
             geometry.screenWidth, geometry.screenHeight, move)
     }
 
-    private fun slotBounds(geometry: WorkspaceGeometry, density: Float): List<SlotBounds> {
-        val gap = (SLOT_GAP_DP * density).toInt().coerceAtLeast(1)
-        val availableHeight = (geometry.sidebarLogicalHeight - gap * (WORKSPACE_SLOT_COUNT - 1))
-            .coerceAtLeast(WORKSPACE_SLOT_COUNT)
-        val baseHeight = availableHeight / WORKSPACE_SLOT_COUNT
-        val remainder = availableHeight % WORKSPACE_SLOT_COUNT
-        return List(WORKSPACE_SLOT_COUNT) { index ->
-            val extraBefore = minOf(index, remainder)
-            SlotBounds(
-                topMargin = index * (baseHeight + gap) + extraBefore,
-                height = baseHeight + if (index < remainder) 1 else 0,
-                marginStart = if (logicalSidebarSide(geometry) == SidebarSide.RIGHT) gap else 0,
-                marginEnd = if (logicalSidebarSide(geometry) == SidebarSide.LEFT) gap else 0,
-            )
-        }
-    }
-
     private fun applySlotLayout(panel: FrameLayout, geometry: WorkspaceGeometry) {
         panel.invalidate()
-        val bounds = slotBounds(geometry, panel.resources.displayMetrics.density)
+        val profile = viewport.layout()
+        val bounds = profile.slots
         slotWindows.forEachIndexed { index, slot ->
+            slot.setLayoutProfile(profile)
             slot.view.setBackgroundSwipeSide(logicalSidebarSide(geometry))
             slot.view.layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
+                bounds[index].width,
                 bounds[index].height,
                 Gravity.TOP,
             ).apply {
-                marginStart = bounds[index].marginStart
-                marginEnd = bounds[index].marginEnd
-                topMargin = bounds[index].topMargin
+                marginStart = if (logicalSidebarSide(geometry) == SidebarSide.RIGHT) profile.gapPixels else 0
+                marginEnd = if (logicalSidebarSide(geometry) == SidebarSide.LEFT) profile.gapPixels else 0
+                topMargin = bounds[index].top
             }
         }
     }
@@ -668,19 +664,12 @@ class NeXtepWindowController(
     }
 
     private fun logicalSidebarSide(geometry: WorkspaceGeometry): SidebarSide =
-        if (!geometry.isLandscape) sidebarSide else
-            if (sidebarSide == SidebarSide.RIGHT) SidebarSide.LEFT else SidebarSide.RIGHT
+        geometry.panelSidebarSide
 
     private fun dp(value: Int): Float = value * context.resources.displayMetrics.density
 
     private fun geometry(): WorkspaceGeometry = currentGeometry()
 
-    private data class SlotBounds(
-        val topMargin: Int,
-        val height: Int,
-        val marginStart: Int,
-        val marginEnd: Int,
-    )
 
     private val transitionInterpolator = DecelerateInterpolator(1.6f)
 
@@ -688,7 +677,6 @@ class NeXtepWindowController(
         const val EXPECTED_WINDOW_COUNT = 3
         const val BACKDROP_SETTLE_REFRESHES = 2
         const val BACKDROP_MAX_RETRIES = 8
-        const val SLOT_GAP_DP = 1f
         const val WORKSPACE_ENTER_DURATION_MS = 240L
         const val WORKSPACE_EXIT_DURATION_MS = 180L
         const val SIDEBAR_SWITCH_DURATION_MS = 220L

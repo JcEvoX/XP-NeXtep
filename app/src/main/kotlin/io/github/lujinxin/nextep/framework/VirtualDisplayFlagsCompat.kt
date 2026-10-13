@@ -23,12 +23,22 @@ object VirtualDisplayFlagsCompat {
             }
         }
 
-        val preferred = Resolved(value, names)
+        val ownFocus = Resolved(value, names.toList())
+        // Slots render previews and receive selections through display 0. Keep
+        // their local focus without letting a moved editor take the global IME
+        // focus from MAIN during an exchange.
+        if ("OWN_FOCUS" in names) {
+            readFlag("VIRTUAL_DISPLAY_FLAG_STEAL_TOP_FOCUS_DISABLED")?.let { flag ->
+                value = value or flag
+                names += "STEAL_TOP_FOCUS_DISABLED"
+            }
+        }
+        val preferred = Resolved(value, names.toList())
         val fallback = Resolved(
             fallbackValue,
             listOf("OWN_CONTENT_ONLY", "PRESENTATION"),
         )
-        return listOf(preferred, fallback).distinctBy { it.value }.also { candidates ->
+        return listOf(preferred, ownFocus, fallback).distinctBy { it.value }.also { candidates ->
             NeXtepLog.info(
                 "virtual_display_flags",
                 "Resolved candidates=${candidates.joinToString { "${it.value}:${it.names}" }}",

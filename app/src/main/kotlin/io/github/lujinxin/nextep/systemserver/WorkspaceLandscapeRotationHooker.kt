@@ -7,10 +7,24 @@ import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.workspace.SystemServerWorkspaceBridge
 import io.github.libxposed.api.XposedInterface
 
-/** Change only the landscape fallback; sensor and explicit rotation choices remain system-owned. */
+/** Allow both landscape directions in workspace; rotation locks remain system-owned. */
 class WorkspaceLandscapeRotationHooker : XposedInterface.Hooker {
     override fun intercept(chain: XposedInterface.Chain): Any? {
-        val original = chain.proceed()
+        val allowBothDirections = runCatching {
+            if (chain.getArg(0) != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE) return@runCatching false
+            val target = chain.thisObject ?: return@runCatching false
+            val display = field(target, "mDisplayContent") ?: return@runCatching false
+            if (field(display, "mDisplayId") != Display.DEFAULT_DISPLAY) return@runCatching false
+            val context = field(target, "mContext") as? Context ?: return@runCatching false
+            SystemServerWorkspaceBridge.isWorkspaceActive(context)
+        }.getOrDefault(false)
+        // Let Android choose between landscape/seascape using its sensors, docks
+        // and user lock policy, instead of hardcoding a result for fixed players.
+        val original = if (allowBothDirections) {
+            val args = chain.args.toTypedArray()
+            args[0] = ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+            chain.proceed(args)
+        } else chain.proceed()
         val rotation = original as? Int ?: return original
         return runCatching {
             val target = chain.thisObject ?: return@runCatching original
@@ -28,7 +42,7 @@ class WorkspaceLandscapeRotationHooker : XposedInterface.Hooker {
             val seascape = field(target, "mSeascapeRotation") as? Int ?: return@runCatching original
             if (rotation != landscape) return@runCatching original
             val lastRotation = chain.getArg(1) as? Int ?: return@runCatching original
-            val flexibleLandscape = orientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            val flexibleLandscape = allowBothDirections || orientation != ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             if (flexibleLandscape && (lastRotation == landscape || lastRotation == seascape)) {
                 return@runCatching original
             }

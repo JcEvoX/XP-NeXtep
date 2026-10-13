@@ -61,13 +61,15 @@ object SystemUiRuntime {
             lifecycleHandler.post {
                 if (::windowController.isInitialized) {
                     windowController.setSlotBackgroundSwipeEnabled(workspaceConfig.slotBackgroundSwipeEnabled)
+                    windowController.setNavigationButtonsEnabled(workspaceConfig.navigationButtonsEnabled)
                 }
             }
             NeXtepLog.info(
                 "workspace_config",
                 "Applied statusBarGesture=${workspaceConfig.statusBarGestureEnabled} " +
                     "slotBackgroundSwipe=${workspaceConfig.slotBackgroundSwipeEnabled} " +
-                    "autoMinimizeMain=${workspaceConfig.autoMinimizeMainOnTopAppSwitch}",
+                    "autoMinimizeMain=${workspaceConfig.autoMinimizeMainOnTopAppSwitch} " +
+                    "navigationButtons=${workspaceConfig.navigationButtonsEnabled}",
             )
         }
     }
@@ -77,18 +79,28 @@ object SystemUiRuntime {
     fun shouldAutoMinimizeMainOnTopAppSwitch(): Boolean = workspaceConfig.autoMinimizeMainOnTopAppSwitch
     private val lockStateObserver = object : Runnable {
         override fun run() {
-            if (::workspaceController.isInitialized && workspaceController.isActive()) {
-                if (!isScreenReady() || isKeyguardLocked(applicationContext)) {
-                    if (!workspaceController.isSuspended()) {
-                        workspaceController.suspendForLock()
-                        publishWorkspaceSurfaceState(false)
-                    }
-                } else if (workspaceController.isSuspended()) {
-                    lifecycleHandler.removeCallbacks(resumeAfterUnlock)
-                    resumeAfterUnlock.run()
+            if (!::workspaceController.isInitialized || !workspaceController.isActive()) return
+            if (!isScreenReady() || isKeyguardLocked(applicationContext)) {
+                if (!workspaceController.isSuspended()) {
+                    workspaceController.suspendForLock()
+                    publishWorkspaceSurfaceState(false)
                 }
+            } else if (workspaceController.isSuspended()) {
+                lifecycleHandler.removeCallbacks(resumeAfterUnlock)
+                resumeAfterUnlock.run()
             }
-            lifecycleHandler.postDelayed(this, 500L)
+            updateLockStateObservation()
+        }
+    }
+
+    private fun updateLockStateObservation() {
+        // State transitions can occur inside an observation callback. Remove any
+        // queued copy before scheduling, so there is only one fallback chain.
+        lifecycleHandler.removeCallbacks(lockStateObserver)
+        if (::workspaceController.isInitialized && workspaceController.isActive()) {
+            lifecycleHandler.postDelayed(lockStateObserver, 500L)
+        } else {
+            lifecycleHandler.removeCallbacks(resumeAfterUnlock)
         }
     }
     private val resumeAfterUnlock = object : Runnable {
@@ -123,6 +135,7 @@ object SystemUiRuntime {
                 applicationContext = applicationContext,
                 windowController = windowController,
                 mainTaskPresenter = mainTaskPresenter,
+                onStateChanged = ::updateLockStateObservation,
             )
 
             val filter = IntentFilter().apply {
@@ -169,8 +182,7 @@ object SystemUiRuntime {
                 WorkspaceStateBridge.requestInactiveFromSystemUi(applicationContext)
                 // OWN_DISPLAY_GROUP virtual screens can keep the device globally interactive
                 // after the physical screen locks, so SCREEN_OFF alone is insufficient.
-                lifecycleHandler.removeCallbacks(lockStateObserver)
-                lifecycleHandler.post(lockStateObserver)
+                updateLockStateObservation()
             }
             NeXtepLog.info("systemui_runtime", "Initialized control receiver")
         } catch (error: Throwable) {
@@ -225,7 +237,7 @@ object SystemUiRuntime {
     private fun reconfigureForViewport() {
         if (!::workspaceController.isInitialized || !workspaceController.isActive() ||
             workspaceController.isSuspended()) return
-        // The inset callback has already updated the cached physical viewport.
+        // A manual navigation-mode change has already updated the cached viewport.
         if (!workspaceController.reconfigure(refreshViewport = false)) {
             publishWorkspaceSurfaceState(false)
             WorkspaceStateBridge.requestInactiveFromSystemUi(applicationContext)
@@ -271,6 +283,12 @@ object SystemUiRuntime {
             }
             val reason = when (intent.action) {
                 Intent.ACTION_CONFIGURATION_CHANGED -> {
+                    if (workspaceController.isSuspended()) {
+                        // Select the recorded rotation/density profile at the actual
+                        // configuration event, never during a task exchange or every wake.
+                        windowController.currentGeometry(refreshViewport = true)
+                        return
+                    }
                     if (workspaceController.reconfigure()) {
                         NeXtepLog.info(
                             "systemui_runtime",
@@ -330,7 +348,10 @@ object SystemUiRuntime {
         TriggerBroadcastContract.ACTION_SET_WORKSPACE -> {
             val target = requestedTarget(intent) ?: false
             if (target && isKeyguardLocked(context)) false
-            else workspaceController.setActive(target)
+            else workspaceController.setActive(target).also { handled ->
+                // The tile/coordinated path must also restore the separate assistant panel.
+                if (handled) publishWorkspaceSurfaceState(target)
+            }
         }
         TriggerBroadcastContract.ACTION_QUERY_WORKSPACE -> true
         TriggerBroadcastContract.ACTION_LAUNCH_SLOT_TEST -> {

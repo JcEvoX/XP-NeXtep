@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Rect
 import android.view.Display
 import io.github.lujinxin.nextep.framework.ActivityTaskManagerCompat
+import io.github.lujinxin.nextep.framework.TaskSurfaceCompat
 import io.github.lujinxin.nextep.framework.WindowContainerTransactionCompat
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.trigger.TriggerBroadcastContract
@@ -21,18 +22,32 @@ class MainTaskPresentationCoordinator(context: Context) {
     fun presentForeground(geometry: WorkspaceGeometry): Result<Unit> {
         val task = taskRepository.foregroundTask()
             ?: return Result.failure(IllegalStateException("No foreground Display 0 task"))
-        return presentTask(task.taskId, geometry)
+        return presentTask(task, geometry)
     }
 
     fun presentTask(taskId: Int, geometry: WorkspaceGeometry): Result<Unit> {
         val task = taskRepository.findTask(taskId)
             ?: return Result.failure(IllegalStateException("Task $taskId is unavailable"))
+        return presentTask(task, geometry)
+    }
+
+    private fun presentTask(
+        task: TaskRepository.TaskSnapshot,
+        geometry: WorkspaceGeometry,
+    ): Result<Unit> {
         if (!isMainFullscreen(task)) {
             // Native freeform/PiP/split-screen surfaces belong to WM Shell, not our
             // fullscreen presentation. Do not replace their position or rotation matrix.
-            return restoreForMove(taskId)
+            return restoreForMove(task.taskId)
         }
-        val homePackage = TriggerBroadcastContract.resolveHomePackage(applicationContext)
+        return presentTask(task, geometry, TriggerBroadcastContract.resolveHomePackage(applicationContext))
+    }
+
+    private fun presentTask(
+        task: TaskRepository.TaskSnapshot,
+        geometry: WorkspaceGeometry,
+        homePackage: String?,
+    ): Result<Unit> {
         if (task.component.packageName == homePackage) {
             NeXtepLog.info("main_task_presenter", "Foreground task is HOME; Launcher owns transform")
             notifyHomePresented()
@@ -68,8 +83,14 @@ class MainTaskPresentationCoordinator(context: Context) {
         return surfaceResult
     }
 
-    fun reconcileForeground(geometry: WorkspaceGeometry): Result<Unit> = runCatching {
-        val foreground = taskRepository.foregroundTask()
+    fun reconcileForeground(geometry: WorkspaceGeometry): Result<Unit> =
+        reconcileForeground(geometry, taskRepository.runningTasks())
+
+    fun reconcileForeground(
+        geometry: WorkspaceGeometry,
+        tasks: List<TaskRepository.TaskSnapshot>,
+    ): Result<Unit> = runCatching {
+        val foreground = tasks.firstOrNull { it.displayId == Display.DEFAULT_DISPLAY }
             ?: error("No foreground Display 0 task")
         val homePackage = TriggerBroadcastContract.resolveHomePackage(applicationContext)
         if (foreground.component.packageName == homePackage) {
@@ -84,7 +105,7 @@ class MainTaskPresentationCoordinator(context: Context) {
             // Keep a different fullscreen task fitted behind the native floating window.
             // If the presented task itself became freeform, release our ownership.
             presentedTaskId?.let { taskId ->
-                if (taskRepository.findTask(taskId)?.let(::isMainFullscreen) != true) {
+                if (tasks.firstOrNull { it.taskId == taskId }?.let(::isMainFullscreen) != true) {
                     restoreForeground().getOrThrow()
                 }
             }
@@ -99,7 +120,7 @@ class MainTaskPresentationCoordinator(context: Context) {
                 ?.getOrThrow()
                 ?: error("Main presenter state is incomplete")
         } else {
-            presentTask(foreground.taskId, geometry).getOrThrow()
+            presentTask(foreground, geometry, homePackage).getOrThrow()
         }
     }
 
@@ -131,6 +152,9 @@ class MainTaskPresentationCoordinator(context: Context) {
     private fun clearFullscreenBounds(
         task: TaskRepository.TaskSnapshot,
     ): Result<Unit> {
+        // The display-move owner already cleared the fullscreen override during
+        // layout restoration. Do not request a second layout after the move.
+        if (TaskSurfaceCompat.hasPreparedPromotion(task.taskId)) return Result.success(Unit)
         val fullscreenMode = ActivityTaskManagerCompat
             .resolveWindowingMode("WINDOWING_MODE_FULLSCREEN")
             ?: WINDOWING_MODE_FULLSCREEN

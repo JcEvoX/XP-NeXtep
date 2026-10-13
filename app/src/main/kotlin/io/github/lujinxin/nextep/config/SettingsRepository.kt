@@ -19,6 +19,7 @@ class SettingsRepository(private val context: Context) {
         val statusBarGestureEnabled: Boolean,
         val slotBackgroundSwipeEnabled: Boolean,
         val autoMinimizeMainOnTopAppSwitch: Boolean,
+        val navigationButtonsEnabled: Boolean,
     )
 
     fun topBarSettings(): TopBarSettings = TopBarSettings(
@@ -42,7 +43,13 @@ class SettingsRepository(private val context: Context) {
         statusBarGestureEnabled = preferences.getBoolean("status_bar_gesture_enabled", true),
         slotBackgroundSwipeEnabled = preferences.getBoolean("slot_background_swipe_enabled", true),
         autoMinimizeMainOnTopAppSwitch = preferences.getBoolean("auto_minimize_main_on_top_app_switch", false),
+        navigationButtonsEnabled = preferences.getBoolean("navigation_buttons_enabled", false),
     )
+
+    fun setNavigationButtonsEnabled(enabled: Boolean) {
+        preferences.edit().putBoolean("navigation_buttons_enabled", enabled).apply()
+        notifyTopContentChanged()
+    }
 
     fun setStatusBarGestureEnabled(enabled: Boolean) {
         preferences.edit().putBoolean("status_bar_gesture_enabled", enabled).apply()

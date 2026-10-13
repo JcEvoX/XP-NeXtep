@@ -1,5 +1,6 @@
 package io.github.lujinxin.nextep.workspace
 
+import io.github.lujinxin.nextep.display.WORKSPACE_SLOT_COUNT
 import kotlin.math.roundToInt
 
 data class WorkspaceNavigationInsets(
@@ -16,8 +17,18 @@ data class WorkspaceGeometry(
     val sidebarWidth: Int,
     val sidebarSide: SidebarSide,
     val navigationInsets: WorkspaceNavigationInsets = WorkspaceNavigationInsets(),
+    val displayRotation: Int = 0,
 ) {
     val isLandscape: Boolean get() = screenWidth > screenHeight
+    // Surface rotations are quarter turns from the phone's natural portrait axes.
+    // Keep controls at the physical phone top while the main app follows the display.
+    val isControlOnLeft: Boolean get() = isLandscape && displayRotation == 1
+    val panelRotationDegrees: Float get() = if (!isLandscape) 0f else if (isControlOnLeft) -90f else 90f
+    // Project the selected button's unchanged diagram into display coordinates.
+    // Rotation never changes the selected layout or the diagram in panel axes.
+    val panelSidebarSide: SidebarSide get() = SidebarButtonLayout.sideInPanel(sidebarSide)
+    val isSidebarAtTop: Boolean get() =
+        SidebarButtonLayout.isAtScreenTop(sidebarSide, isLandscape, isControlOnLeft)
 
     // The task still occupies the full display. Its navigation-safe source rectangle
     // is fitted uniformly, so the native navigation padding is not scaled a second time.
@@ -30,6 +41,7 @@ data class WorkspaceGeometry(
 
     init {
         require(screenWidth > 1 && screenHeight > 1)
+        require(displayRotation in 0..3)
         require(navigationInsets.left >= 0 && navigationInsets.top >= 0 &&
             navigationInsets.right >= 0 && navigationInsets.bottom >= 0)
         require(navigationInsets.left <= screenWidth - 2 &&
@@ -44,17 +56,17 @@ data class WorkspaceGeometry(
     // Control-strip thickness and slot-rail thickness use portrait logical axes.
     val controlWidth: Int get() = if (isLandscape) topHeight else availableWidth
     val controlHeight: Int get() = if (isLandscape) availableHeight else topHeight
-    val controlLeft: Int get() = if (isLandscape) availableRight - topHeight else availableLeft
+    val controlLeft: Int get() = if (isLandscape && !isControlOnLeft) availableRight - topHeight else availableLeft
     val controlTop: Int get() = availableTop
-    val sidebarLeft: Int get() = if (isLandscape || sidebarSide == SidebarSide.LEFT) availableLeft else contentRight
+    val sidebarLeft: Int get() = if (isLandscape) contentLeft else if (sidebarSide == SidebarSide.LEFT) availableLeft else contentRight
     val sidebarTop: Int get() = if (!isLandscape) availableTop + topHeight else
-        if (sidebarSide == SidebarSide.RIGHT) availableTop else availableBottom - sidebarWidth
+        if (isSidebarAtTop) availableTop else availableBottom - sidebarWidth
     val sidebarPhysicalWidth: Int get() = if (isLandscape) contentWidth else sidebarWidth
     val sidebarPhysicalHeight: Int get() = if (isLandscape) sidebarWidth else contentHeight
     val sidebarLogicalHeight: Int get() = if (isLandscape) contentWidth else contentHeight
 
     val contentTop: Int get() = availableTop + if (!isLandscape) topHeight else
-        if (sidebarSide == SidebarSide.RIGHT) sidebarWidth else 0
+        if (isSidebarAtTop) sidebarWidth else 0
     val contentBottom: Int get() = contentTop + contentHeight
 
     val contentWidth: Int
@@ -64,7 +76,9 @@ data class WorkspaceGeometry(
         get() = availableHeight - if (isLandscape) sidebarWidth else topHeight
 
     val contentLeft: Int
-        get() = availableLeft + if (!isLandscape && sidebarSide == SidebarSide.LEFT) sidebarWidth else 0
+        get() = availableLeft + if (isLandscape) {
+            if (isControlOnLeft) topHeight else 0
+        } else if (sidebarSide == SidebarSide.LEFT) sidebarWidth else 0
 
     val contentRight: Int
         get() = contentLeft + contentWidth
@@ -88,6 +102,7 @@ data class WorkspaceGeometry(
             sidebarSide: SidebarSide = SidebarSide.RIGHT,
             density: Float,
             navigationInsets: WorkspaceNavigationInsets = WorkspaceNavigationInsets(),
+            displayRotation: Int = 0,
         ): WorkspaceGeometry {
             require(screenWidth > 1 && screenHeight > 1) { "Display dimensions must be usable" }
             require(density.isFinite() && density > 0f) { "Display density must be positive and finite" }
@@ -103,17 +118,15 @@ data class WorkspaceGeometry(
             val landscape = screenWidth > screenHeight
             val longSide = if (landscape) availableWidth else availableHeight
             val shortSide = if (landscape) availableHeight else availableWidth
-            // Navigation space comes out of the task area, not fixed-height controls.
-            // Shrinking the strip with the usable height can clip its app-icon row.
-            val proportionalTopHeight = (maxOf(screenWidth, screenHeight) * TOP_HEIGHT_FRACTION).roundToInt()
-            // Fixed-size controls must not leave a growing empty band on tablets.
-            // Use the same short-side check in either orientation and in every host.
-            val topHeight = if (minOf(screenWidth, screenHeight) / density >= WorkspaceControlMetrics.LARGE_SCREEN_MIN_SHORT_SIDE_DP) {
-                minOf(proportionalTopHeight, (WorkspaceControlMetrics.COMPACT_HEIGHT_DP * density).roundToInt())
-            } else proportionalTopHeight
-            val controlThickness = topHeight.coerceIn(1, longSide - 1)
-            // Derive the rail from the remaining main area, rather than independently
-            // choosing its width. Both axes must fit the same safe source aspect ratio.
+            val gap = density.toInt().coerceAtLeast(1)
+            // Solve the main region and all portrait slots together. If H is the
+            // content's long side and r = shortSide/longSide, their short sides
+            // are H*r and (H-(N-1)*gap)*r/N. Including the rail divider, they
+            // must sum to shortSide. Independent strip/rail fractions leave bands.
+            val count = WORKSPACE_SLOT_COUNT
+            val contentLongSide = (count * (shortSide - gap).toDouble() * longSide / shortSide +
+                (count - 1) * gap) / (count + 1)
+            val controlThickness = (longSide - contentLongSide).roundToInt().coerceIn(1, longSide - 1)
             val mainShortSide = (shortSide.toDouble() * (longSide - controlThickness) / longSide)
                 .roundToInt().coerceIn(1, shortSide - 1)
             return WorkspaceGeometry(
@@ -123,6 +136,7 @@ data class WorkspaceGeometry(
                 sidebarWidth = shortSide - mainShortSide,
                 sidebarSide = sidebarSide,
                 navigationInsets = safeInsets,
+                displayRotation = displayRotation,
             )
         }
     }

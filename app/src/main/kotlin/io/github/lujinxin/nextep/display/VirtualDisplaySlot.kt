@@ -9,6 +9,8 @@ import android.view.Surface
 import android.view.TextureView
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.framework.UserTargetedActivityLauncher
+import io.github.lujinxin.nextep.workspace.WorkspaceLayoutProfile
+import android.graphics.Matrix
 
 class VirtualDisplaySlot(
     context: Context,
@@ -25,9 +27,11 @@ class VirtualDisplaySlot(
     private val applicationContext = context.applicationContext ?: context
     private val factory = VirtualDisplayFactory(applicationContext)
     private var active = false
+    private var suspended = false
     private var surface: Surface? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var activeGeometry: SlotGeometry? = null
+    private var layoutProfile: WorkspaceLayoutProfile? = null
     private var pendingLaunch: Intent? = null
     private var freshSurfaceRequired = false
     private var surfaceGeneration = 1
@@ -44,6 +48,17 @@ class VirtualDisplaySlot(
     fun displayId(): Int? = virtualDisplay?.display?.displayId
 
     fun geometry(): SlotGeometry? = activeGeometry
+
+    fun setLayoutProfile(profile: WorkspaceLayoutProfile) {
+        if (layoutProfile == profile) return
+        layoutProfile = profile
+        val texture = view.textureView.surfaceTexture
+        if (texture != null) onSurfaceTextureSizeChanged(texture, view.textureView.width, view.textureView.height)
+    }
+
+    fun sourceBounds(): WorkspaceLayoutProfile.Source = checkNotNull(layoutProfile).source
+
+    fun isSuspended(): Boolean = suspended
 
     fun activate() {
         active = true
@@ -67,14 +82,49 @@ class VirtualDisplaySlot(
 
     fun deactivate() {
         active = false
+        suspended = false
         pendingLaunch = null
         releaseDisplay("workspace hidden")
         freshSurfaceRequired = true
     }
 
+    fun setSuspended(value: Boolean) {
+        if (value) {
+            suspended = true
+            // A null Surface turns the display off without removing its tasks/windows.
+            // Keep our Surface alive so unlock can reconnect the same display.
+            runCatching { virtualDisplay?.setSurface(null) }.onFailure {
+                NeXtepLog.warn("virtual_display", "Unable to suspend output slot=$index", it)
+            }
+            return
+        }
+        if (!suspended) return
+        virtualDisplay?.let { display ->
+            val currentSurface = surface?.takeIf { it.isValid } ?: view.textureView.surfaceTexture?.let {
+                Surface(it).also { replacement -> surface?.release(); surface = replacement }
+            } ?: return
+            check(currentSurface.isValid) { "Slot $index output Surface is invalid" }
+            display.setSurface(currentSurface)
+        }
+        suspended = false
+        val textureView = view.textureView
+        val texture = textureView.surfaceTexture
+        if (active && textureView.isAvailable && texture != null) {
+            // Rotation/insets may have changed while output was disconnected.
+            onSurfaceTextureSizeChanged(texture, textureView.width, textureView.height)
+            createDisplay(texture, textureView.width, textureView.height)
+        }
+        virtualDisplay?.display?.displayId?.let { displayId ->
+            pendingLaunch?.let { intent ->
+                pendingLaunch = null
+                launchNow(intent, displayId)
+            }
+        }
+    }
+
     fun launch(intent: Intent): Result<Unit> {
         val displayId = virtualDisplay?.display?.displayId
-        if (displayId == null) {
+        if (suspended || displayId == null) {
             pendingLaunch = Intent(intent)
             view.showWaiting()
             return Result.success(Unit)
@@ -87,12 +137,20 @@ class VirtualDisplaySlot(
     }
 
     override fun onSurfaceTextureSizeChanged(texture: SurfaceTexture, width: Int, height: Int) {
-        if (!active) return
+        if (!active || suspended) return
         if (width <= 0 || height <= 0) return
-        val geometry = SlotGeometry.matchingViewport(applicationContext, width, height)
+        val profile = checkNotNull(layoutProfile) { "Recorded layout must precede slot activation" }
+        val geometry = profile.canvas
+        // TextureView resets the producer buffer to its view size during layout.
+        // Restore the recorded canvas even when the VirtualDisplay did not resize.
+        texture.setDefaultBufferSize(geometry.width, geometry.height)
+        val transform = profile.previewTransform(width, height)
+        view.textureView.setTransform(Matrix().apply {
+            setScale(transform.scaleX, transform.scaleY)
+            postTranslate(transform.x, transform.y)
+        })
         // Reuse the surface when dimensions settle or only the sidebar's position changes.
         if (virtualDisplay != null && geometry == activeGeometry) {
-            texture.setDefaultBufferSize(geometry.width, geometry.height)
             return
         }
         activeGeometry = geometry
@@ -125,10 +183,11 @@ class VirtualDisplaySlot(
     override fun onSurfaceTextureUpdated(texture: SurfaceTexture) = Unit
 
     private fun createDisplay(texture: SurfaceTexture, width: Int, height: Int) {
-        if (virtualDisplay != null || width <= 0 || height <= 0) return
-        val geometry = SlotGeometry.matchingViewport(applicationContext, width, height)
+        if (!active || suspended || virtualDisplay != null || width <= 0 || height <= 0) return
+        val geometry = checkNotNull(layoutProfile).canvas
         activeGeometry = geometry
         texture.setDefaultBufferSize(geometry.width, geometry.height)
+        onSurfaceTextureSizeChanged(texture, width, height)
         val createdSurface = Surface(texture)
         factory.create(index, geometry, createdSurface)
             .onSuccess { display ->

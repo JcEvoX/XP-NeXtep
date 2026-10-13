@@ -22,17 +22,20 @@ object SystemServerHook {
     fun install(module: XposedModule, classLoader: ClassLoader) {
         if (!installed.compareAndSet(false, true)) return
         HookGuard.run("workspace_ime_target") { WorkspaceImeTargetHook.install(module, classLoader) }
+        HookGuard.run("workspace_navigation") { WorkspaceNavigationBarHook.install(module, classLoader) }
+        HookGuard.run("slot_native_layout") { WorkspaceSlotNativeLayoutHook.install(module, classLoader) }
         val workspaceTasksInstalled = HookGuard.run("workspace_task_surface") {
             WorkspaceTaskSurfaceHook.install(module, classLoader)
         }
-        val workspaceHierarchyInstalled = HookGuard.run("workspace_display_hierarchy") {
-            WorkspaceDisplayHierarchyHook.install(module, classLoader)
-        }
+        val nativeLayerHooker = NativeFloatingWindowLayerHooker()
         val nativeLayersInstalled = HookGuard.run("native_floating_layer") {
             val method = classLoader.loadClass("com.android.server.wm.DisplayContent")
                 .getDeclaredMethod("prepareSurfaces")
                 .apply { isAccessible = true }
-            module.hook(method).intercept(NativeFloatingWindowLayerHooker())
+            module.hook(method).intercept(nativeLayerHooker)
+        }
+        val workspaceHierarchyInstalled = HookGuard.run("workspace_display_hierarchy") {
+            WorkspaceDisplayHierarchyHook.install(module, classLoader, nativeLayerHooker)
         }
         val aspectInstalled = installAspectHook(module, classLoader)
         val sizeCompatInstalled = installSizeCompatHook(module, classLoader)

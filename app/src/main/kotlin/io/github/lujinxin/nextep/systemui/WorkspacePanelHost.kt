@@ -6,7 +6,7 @@ import android.view.ViewGroup
 
 /** Rotate panel content as a view subtree so Android also transforms touch and drag events. */
 internal class WorkspacePanelHost(context: Context, content: View) : ViewGroup(context) {
-    var landscape: Boolean = false
+    var panelRotationDegrees: Float = 0f
         set(value) {
             if (field == value) return
             field = value
@@ -14,6 +14,8 @@ internal class WorkspacePanelHost(context: Context, content: View) : ViewGroup(c
         }
 
     init { addView(content) }
+
+    private val landscape: Boolean get() = panelRotationDegrees != 0f
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
@@ -30,9 +32,9 @@ internal class WorkspacePanelHost(context: Context, content: View) : ViewGroup(c
             layout(0, 0, measuredWidth, measuredHeight)
             pivotX = 0f
             pivotY = 0f
-            rotation = if (landscape) 90f else 0f
-            translationX = if (landscape) this@WorkspacePanelHost.width.toFloat() else 0f
-            translationY = 0f
+            rotation = panelRotationDegrees
+            translationX = if (panelRotationDegrees > 0f) this@WorkspacePanelHost.width.toFloat() else 0f
+            translationY = if (panelRotationDegrees < 0f) this@WorkspacePanelHost.height.toFloat() else 0f
         }
     }
 }

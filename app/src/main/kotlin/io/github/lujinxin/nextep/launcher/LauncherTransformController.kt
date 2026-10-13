@@ -12,7 +12,6 @@ import android.view.Display
 import android.view.WindowManager
 import android.graphics.Matrix
 import android.graphics.Rect
-import android.view.WindowInsets
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.systemui.SystemDialogLayoutController
 import io.github.lujinxin.nextep.workspace.WorkspaceGeometry
@@ -151,6 +150,7 @@ object LauncherTransformController {
             screenHeight,
             SystemServerWorkspaceBridge.sidebarSide(decor.context),
             density = displayMetrics.density,
+            displayRotation = decor.display?.rotation ?: 0,
         )
         if (!LauncherPackageResolver.isAssistantScreen(decor.context)) {
             SystemDialogLayoutController.setGeometry(geometry)
@@ -158,9 +158,11 @@ object LauncherTransformController {
         val isAssistant = LauncherPackageResolver.isAssistantScreen(decor.context)
         val saved = assistantRoots[decor]
         val sourceBounds = if (isAssistant && saved != null) {
-            val insets = decor.rootWindowInsets?.getInsetsIgnoringVisibility(WindowInsets.Type.navigationBars())
-            Rect(insets?.left ?: 0, insets?.top ?: 0,
-                decor.width - (insets?.right ?: 0), decor.height - (insets?.bottom ?: 0))
+            // Use SystemUI's recorded navigation mode, including zero padding in
+            // gesture mode. A page transition must not sample different live insets.
+            val insets = geometry.navigationInsets
+            Rect(insets.left, insets.top,
+                decor.width - insets.right, decor.height - insets.bottom)
         } else Rect(geometry.availableLeft, geometry.availableTop,
             geometry.availableRight, geometry.availableBottom)
         if (sourceBounds.width() <= 0 || sourceBounds.height() <= 0) return

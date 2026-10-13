@@ -24,6 +24,7 @@ import io.github.lujinxin.nextep.config.WorkspaceConfigClient
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.workspace.SidebarSide
 import io.github.lujinxin.nextep.workspace.WorkspaceControlMetrics
+import io.github.lujinxin.nextep.workspace.SidebarButtonLayout
 import java.lang.reflect.Proxy
 
 class TopAppStripView(
@@ -39,14 +40,11 @@ class TopAppStripView(
     private val onAppDragTouch: (View, android.view.MotionEvent) -> Boolean,
 ) : FrameLayout(context) {
     private var landscape = false
+    private var controlOnLeft = false
 
-    fun setLandscape(value: Boolean) {
+    fun setLandscape(value: Boolean, controlOnLeft: Boolean) {
         landscape = value
-        leftButton.contentDescription = if (value) "小窗靠下" else "小窗靠左"
-        rightButton.contentDescription = if (value) "小窗靠上" else "小窗靠右"
-        // Match the rail placement after the clockwise panel transform.
-        leftButton.scaleX = if (value) -1f else 1f
-        rightButton.scaleX = if (value) -1f else 1f
+        this.controlOnLeft = controlOnLeft
     }
 
     private val repository = TopAppRepository(context)
@@ -114,6 +112,8 @@ class TopAppStripView(
     private var refreshPending = false
     private var lastRefreshAt = 0L
     private var refreshGeneration = 0
+    private var refreshRetryCount = 0
+    private val refreshRetry = Runnable { refresh(force = true) }
     private var touchableInsetsListener: Any? = null
     private var internalAppDragActive = false
     private var deferredApps: List<TopAppRepository.AppEntry>? = null
@@ -158,10 +158,21 @@ class TopAppStripView(
         post { SystemUiStatusBarGestureInstaller.install(this) }
     }
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        if (MeasureSpec.getMode(heightMeasureSpec) != MeasureSpec.UNSPECIFIED) {
+            val mediaHeight = WorkspaceControlMetrics.mediaHeightPixels(
+                MeasureSpec.getSize(heightMeasureSpec), resources.displayMetrics.density,
+            )
+            mediaControl.layoutParams.height = mediaHeight
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+
     private val configChangedReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             // Read configuration through the explicit module receiver; do not trust broadcast extras.
             if (intent.action == io.github.lujinxin.nextep.config.WorkspaceConfigContract.ACTION_CHANGED) {
+                refreshRetryCount = 0
                 refresh(force = true)
             }
         }
@@ -223,16 +234,21 @@ class TopAppStripView(
             android.content.IntentFilter(io.github.lujinxin.nextep.config.WorkspaceConfigContract.ACTION_CHANGED),
             Context.RECEIVER_EXPORTED)
         updateTitle()
+        if (workspaceVisible && appRow.childCount == 0) refresh(force = true)
     }
 
     override fun onDetachedFromWindow() {
         removeCallbacks(titleTick)
+        removeCallbacks(refreshRetry)
         context.unregisterReceiver(configChangedReceiver)
         super.onDetachedFromWindow()
     }
 
     fun setWorkspaceVisible(visible: Boolean) {
+        if (visible && !workspaceVisible) refreshRetryCount = 0
         workspaceVisible = visible
+        if (!visible) removeCallbacks(refreshRetry)
+        else if (appRow.childCount == 0) refresh(force = true)
         updateTitle()
         mediaControl.setWorkspaceVisible(visible)
     }
@@ -263,6 +279,7 @@ class TopAppStripView(
     }
 
     fun refresh(force: Boolean = false) {
+        removeCallbacks(refreshRetry)
         mediaControl.refresh()
         val now = System.currentTimeMillis()
         if (loading) {
@@ -273,25 +290,37 @@ class TopAppStripView(
         loading = true
         val generation = ++refreshGeneration
         Thread({
-            val config = WorkspaceConfigClient.query(context)
-            val result = runCatching {
-                repository.load(
-                    if (config.manualAppOrder) config.appComponents else emptyList(),
-                    manualOrder = config.manualAppOrder,
-                )
+            val config = WorkspaceConfigClient.queryOrNull(context)
+            val result = config?.let {
+                runCatching {
+                    repository.load(
+                        if (config.manualAppOrder) config.appComponents else emptyList(),
+                        manualOrder = config.manualAppOrder,
+                    )
+                }
             }
             post {
                 if (generation != refreshGeneration) return@post
                 loading = false
-                onFrostStrengthChanged(config.frostStrength)
-                topConfig = config
-                updateTitle()
-                result.onSuccess { entries ->
-                    lastRefreshAt = System.currentTimeMillis()
-                    renderApps(entries)
-                }.onFailure { error ->
-                    NeXtepLog.error("top_apps", "Unable to load App strip", error)
-                    renderApps(emptyList())
+                if (config != null) {
+                    onFrostStrengthChanged(config.frostStrength)
+                    topConfig = config
+                    updateTitle()
+                    result?.onSuccess { entries ->
+                        refreshRetryCount = 0
+                        lastRefreshAt = System.currentTimeMillis()
+                        renderApps(entries)
+                    }?.onFailure { error ->
+                        NeXtepLog.error("top_apps", "Unable to load App strip", error)
+                        // A temporary catalogue failure must not erase the
+                        // last successfully rendered user selection.
+                        scheduleRefreshRetry()
+                    }
+                } else {
+                    // A failed IPC query says nothing about the user's preferences.
+                    // Retain both the title mode and the already rendered app order.
+                    NeXtepLog.warn("top_apps", "Config unavailable; retaining previous top content and App order")
+                    scheduleRefreshRetry()
                 }
                 if (refreshPending) {
                     refreshPending = false
@@ -299,6 +328,16 @@ class TopAppStripView(
                 }
             }
         }, "NeXtep-TopApps").start()
+    }
+
+    private fun scheduleRefreshRetry() {
+        if (!isAttachedToWindow || !workspaceVisible) return
+        removeCallbacks(refreshRetry)
+        // A cold or temporarily frozen module can outlast the initial retries.
+        // Keep the last successful selection and retry while the panel is visible.
+        val delay = minOf(1_000L * (1L shl refreshRetryCount), REFRESH_INTERVAL_MS)
+        refreshRetryCount = (refreshRetryCount + 1).coerceAtMost(4)
+        postDelayed(refreshRetry, delay)
     }
 
     private fun actionRow(): View = LinearLayout(context).apply {
@@ -392,8 +431,10 @@ class TopAppStripView(
                         .invoke(info, TOUCHABLE_INSETS_REGION)
                     val region = info.javaClass.getField("touchableRegion").get(info) as Region
                     if (landscape) {
-                        // Window-local coordinates after the panel's clockwise rotation.
-                        region.set(0, 0, (height - dp(WorkspaceControlMetrics.STATUS_HEIGHT_DP)).coerceAtLeast(0), width)
+                        // Exclude the physical-top status band in window-local axes.
+                        val status = dp(WorkspaceControlMetrics.STATUS_HEIGHT_DP).coerceIn(0, height)
+                        if (controlOnLeft) region.set(status, 0, height, width)
+                        else region.set(0, 0, height - status, width)
                     } else {
                         region.set(0, dp(WorkspaceControlMetrics.STATUS_HEIGHT_DP), width, height)
                     }
@@ -462,12 +503,13 @@ private class SideSelectionButton(
             iconLeft + right * scale - strokeInset,
             iconTop + bottom * scale - strokeInset,
         )
-        val mainRect = if (representedSide == SidebarSide.LEFT) {
+        val diagramSide = SidebarButtonLayout.sideInPanel(representedSide)
+        val mainRect = if (diagramSide == SidebarSide.LEFT) {
             rect(8.5f, 1f, 22f, 23f)
         } else {
             rect(2f, 1f, 15.5f, 23f)
         }
-        val stackLeft = if (representedSide == SidebarSide.LEFT) {
+        val stackLeft = if (diagramSide == SidebarSide.LEFT) {
             2f
         } else {
             17f

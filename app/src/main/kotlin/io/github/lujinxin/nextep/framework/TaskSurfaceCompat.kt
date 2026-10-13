@@ -11,6 +11,7 @@ import android.view.Display
 import android.view.animation.DecelerateInterpolator
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.workspace.WorkspaceGeometry
+import io.github.lujinxin.nextep.workspace.WorkspaceNavigationInsets
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
@@ -56,7 +57,7 @@ object TaskSurfaceCompat {
     private var activityManager: ActivityManager? = null
     private val activePresentations = ConcurrentHashMap<Int, ActivePresentation>()
     private val preparedPresentations = ConcurrentHashMap<Int, ActivePresentation>()
-    private data class SlotSurface(val displayId: Int, val leash: Any) {
+    private data class SlotSurface(val displayId: Int, val leash: Any, val crop: Rect) {
         var lastAppliedAt = 0L
     }
     private val slotSurfaces = ConcurrentHashMap<Int, SlotSurface>()
@@ -108,14 +109,16 @@ object TaskSurfaceCompat {
         // the task. Missing observed ownership prevents commits to the old surface.
     }
 
-    /** A late Shell finish can restore the crop from the slot's previous size.
-     * The virtual display already clips its output; retain native animation transforms
-     * but remove the obsolete task crop before any transaction becomes visible. */
-    fun fitSlotSurface(taskId: Int, displayId: Int): Result<Unit> = runCatching {
+    /** Slot tasks render in display-local coordinates. Moving a fitted main task
+     * must clear its matrix and position as well as its physical-display crop. */
+    fun fitSlotSurface(taskId: Int, displayId: Int, crop: Rect): Result<Unit> = runCatching {
         require(displayId != Display.DEFAULT_DISPLAY)
+        // Do not overwrite the outgoing display-0 snapshot before Shell's
+        // reparent. WM owns the move/finish; steady slot fitting runs afterwards.
+        if (isDisplayExchanging(taskId)) return@runCatching
         val observed = observedStates[taskId]
         val cached = slotSurfaces[taskId]?.takeIf {
-            it.displayId == displayId && observed?.displayId == displayId &&
+            it.displayId == displayId && it.crop == crop && observed?.displayId == displayId &&
                 observedLeashes[taskId] === it.leash && isValid(it.leash)
         }
         val slot = cached ?: run {
@@ -125,7 +128,7 @@ object TaskSurfaceCompat {
             ) return@runCatching
             val leash = findTaskLeash(taskId, requireMainDisplay = false) ?: return@runCatching
             if (!isValid(leash)) return@runCatching
-            SlotSurface(displayId, leash).also { slotSurfaces[taskId] = it }
+            SlotSurface(displayId, leash, Rect(crop)).also { slotSurfaces[taskId] = it }
         }
         val now = SystemClock.uptimeMillis()
         if (now - slot.lastAppliedAt < STEADY_REAPPLY_INTERVAL_MS) return@runCatching
@@ -134,18 +137,19 @@ object TaskSurfaceCompat {
             .getDeclaredConstructor().newInstance()
         transactionGuard.ownedTransaction {
             try {
-                setCrop(transaction, slot.leash, null)
+                writeFrame(transaction, slot.leash, SurfaceFrame(1f, 1f, 0f, 0f, slot.crop))
                 invokeRequired(transaction, "apply")
                 slot.lastAppliedAt = now
             } finally {
                 invokeOptional(transaction, "close")
             }
         }
-    }.onFailure { NeXtepLog.warn("slot_surface", "Unable to clear obsolete slot crop taskId=$taskId", it) }
+    }.onFailure { NeXtepLog.warn("slot_surface", "Unable to restore slot coordinates taskId=$taskId", it) }
 
     /** Reserve fitting before a display move, without touching the small-window surface. */
     fun preparePromotion(taskId: Int, geometry: WorkspaceGeometry): Result<Unit> = runCatching {
-        val leash = findTaskLeash(taskId, requireMainDisplay = false)
+        val leash = observedLeashes[taskId]?.takeIf(::isValid)
+            ?: findTaskLeash(taskId, requireMainDisplay = false)
             ?: error("WM Shell task leash unavailable for promotion taskId=$taskId")
         check(isValid(leash)) { "Invalid promotion leash taskId=$taskId" }
         preparedPresentations[taskId] = ActivePresentation(
@@ -160,6 +164,8 @@ object TaskSurfaceCompat {
     fun cancelPreparedPromotion(taskId: Int) {
         preparedPresentations.remove(taskId)
     }
+
+    fun hasPreparedPromotion(taskId: Int): Boolean = preparedPresentations.containsKey(taskId)
 
     fun markDisplayExchange(taskId: Int, destinationDisplayId: Int) {
         val now = SystemClock.uptimeMillis()
@@ -235,9 +241,9 @@ object TaskSurfaceCompat {
         val prepared = preparedPresentations[taskId]
         activePresentations[taskId] = presentation
         preparedPresentations.remove(taskId)
-        if (prepared != null) {
-            // The native start transaction has already fitted its first visible frame.
-            // Starting a second entry zoom here would make that frame shrink again.
+        if (prepared != null || geometry.navigationInsets != WorkspaceNavigationInsets()) {
+            // Promotion and recorded-button cold launches fit their native first
+            // frame already. Do not shrink it again with a second entry zoom.
             applyPresentation(presentation)
         } else animatePresentation(
             taskId = taskId,
@@ -484,9 +490,11 @@ object TaskSurfaceCompat {
             if (slotSurfaces[taskId] != slot || state.displayId != slot.displayId ||
                 state.vendorWindowed || state.windowingMode != WINDOWING_MODE_FULLSCREEN ||
                 observedLeashes[taskId] !== slot.leash || !isValid(slot.leash) ||
-                (isDisplayExchanging(taskId) && exchangeDisplays[taskId] != slot.displayId)
+                isDisplayExchanging(taskId)
             ) return@forEach
-            setCrop(transaction, slot.leash, null)
+            // A queued Shell finish may still contain the former main transform.
+            // Preserve its visibility/layer writes, but commit local slot coordinates.
+            writeFrame(transaction, slot.leash, SurfaceFrame(1f, 1f, 0f, 0f, slot.crop))
         }
     }
 

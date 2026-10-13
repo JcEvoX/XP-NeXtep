@@ -72,14 +72,17 @@ object SystemUiHook {
         HookGuard.run("slot_retention_display_area") {
             classLoader.loadClass("com.android.wm.shell.RootTaskDisplayAreaOrganizer")
                 .declaredMethods.filter {
-                    it.name in setOf("onDisplayAreaAppeared", "onDisplayAreaInfoChanged")
+                    it.name in setOf("onDisplayAreaAppeared", "onDisplayAreaInfoChanged", "onDisplayAreaVanished")
                 }.forEach { method ->
                     module.hook(method).intercept(object : io.github.libxposed.api.XposedInterface.Hooker {
                         override fun intercept(chain: io.github.libxposed.api.XposedInterface.Chain): Any? {
                             HookGuard.run("slot_retention_display_area_info") {
                                 chain.args.firstOrNull()?.let {
-                                    io.github.lujinxin.nextep.framework.WindowContainerTransactionCompat
-                                        .observeDisplayArea(it)
+                                    if (method.name == "onDisplayAreaVanished") {
+                                        io.github.lujinxin.nextep.framework.WindowContainerTransactionCompat.forgetDisplayArea(it)
+                                    } else {
+                                        io.github.lujinxin.nextep.framework.WindowContainerTransactionCompat.observeDisplayArea(it)
+                                    }
                                 }
                             }
                             return chain.proceed()

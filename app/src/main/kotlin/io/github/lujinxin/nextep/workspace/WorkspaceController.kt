@@ -14,9 +14,13 @@ class WorkspaceController(
     private val applicationContext: Context,
     private val windowController: NeXtepWindowController,
     private val mainTaskPresenter: MainTaskPresentationCoordinator,
+    private val onStateChanged: () -> Unit = {},
 ) {
     var state: WorkspaceState = WorkspaceState.Disabled
-        private set
+        private set(value) {
+            field = value
+            onStateChanged()
+        }
 
     fun setActive(active: Boolean): Boolean {
         check(Looper.myLooper() == Looper.getMainLooper()) {
@@ -45,18 +49,31 @@ class WorkspaceController(
     fun resumeAfterLock(): Boolean {
         if (!isSuspended()) return true
         return runCatching {
-            val geometry = windowController.currentGeometry(refreshViewport = true)
-            mainTaskPresenter.presentForeground(geometry).getOrThrow()
+            // Reveal the retained windows independently of HOME/app task readiness.
+            // The slot coordinator already retries foreground fitting after wake.
+            val geometry = windowController.currentGeometry()
             SystemUiRootTransformController.setGeometry(geometry)
-            SystemUiRootTransformController.setActive(true)
             windowController.resumeAfterLock()
             SystemServerWorkspaceBridge.publish(applicationContext, true, geometry)
+            // NotificationShade also hosts the exiting keyguard. Unlock must
+            // leave that native window untouched; fit it on the next shade gesture.
+            SystemUiRootTransformController.setActive(true, fitExistingShade = false)
             SystemDialogLayoutController.setGeometry(geometry)
             state = WorkspaceState.Active(geometry)
             NeXtepLog.info("workspace", "Resumed after unlock; slot tasks retained")
             true
         }.onFailure {
-            NeXtepLog.warn("workspace", "Unlock resume will retry", it)
+            // Window failure must release the workspace gate so native HOME/SystemUI
+            // can render, rather than hiding everything on every unlock retry.
+            SystemServerWorkspaceBridge.publish(applicationContext, false)
+            SystemUiRootTransformController.setActive(false)
+            SystemDialogLayoutController.setGeometry(null)
+            mainTaskPresenter.restoreForeground().onFailure { rollbackError ->
+                NeXtepLog.warn("workspace", "Unable to restore main task after resume failure", rollbackError)
+            }
+            runCatching { windowController.hide() }.onFailure(it::addSuppressed)
+            state = WorkspaceState.Disabled
+            NeXtepLog.warn("workspace", "Unlock windows unavailable; restored native interface", it)
         }.getOrDefault(false)
     }
 

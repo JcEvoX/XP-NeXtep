@@ -122,6 +122,14 @@ object SettingsScreen {
                         settings.autoMinimizeMainOnTopAppSwitch,
                         repository::setAutoMinimizeMainOnTopAppSwitch,
                     ), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingSwitchRow(
+                        activity,
+                        "虚拟按键适配",
+                        "使用三键导航时开启，手势导航请关闭。更改系统导航方式后，重新开关一次。",
+                        settings.navigationButtonsEnabled,
+                        repository::setNavigationButtonsEnabled,
+                    ), matchWidth())
                 }, matchWidth())
             }, matchWidth().apply { bottomMargin = dp(activity, 16) })
 

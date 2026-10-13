@@ -1,11 +1,10 @@
 package io.github.lujinxin.nextep.display
 
 import android.content.Context
-import kotlin.math.roundToInt
 
 /**
- * Full-width portrait canvas with the slot's aspect ratio. Apps lay out for the
- * available height instead of stretching their original full-screen buffers.
+ * Recorded physical portrait canvas, shared with the main display. The preview
+ * scales this canvas rather than changing app resolution for each rail slot.
  * Moving a landscape task between displays can still cause an Android configuration change.
  */
 data class SlotGeometry(
@@ -22,20 +21,16 @@ data class SlotGeometry(
         /**
          * Keeps the default display's portrait width and density, independent of main rotation.
          */
-        fun matchingViewport(context: Context, viewportWidth: Int, viewportHeight: Int): SlotGeometry {
+        fun matchingDefaultDisplay(context: Context): SlotGeometry {
             val displayMetrics = context.resources.displayMetrics
             require(displayMetrics.widthPixels > 0 && displayMetrics.heightPixels > 0) {
                 "Default display dimensions must be usable"
             }
-            return forViewport(minOf(displayMetrics.widthPixels, displayMetrics.heightPixels),
-                displayMetrics.densityDpi, viewportWidth, viewportHeight)
+            return forRecordedDisplay(displayMetrics.widthPixels, displayMetrics.heightPixels,
+                displayMetrics.densityDpi)
         }
 
-        fun forViewport(sourceWidth: Int, densityDpi: Int, viewportWidth: Int, viewportHeight: Int): SlotGeometry {
-            require(sourceWidth > 0 && viewportWidth > 0 && viewportHeight > 0)
-            return SlotGeometry(sourceWidth,
-                (sourceWidth.toDouble() * viewportHeight / viewportWidth).roundToInt().coerceAtLeast(1),
-                densityDpi)
-        }
+        fun forRecordedDisplay(width: Int, height: Int, densityDpi: Int) =
+            SlotGeometry(minOf(width, height), maxOf(width, height), densityDpi)
     }
 }

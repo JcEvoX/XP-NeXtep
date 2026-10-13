@@ -45,6 +45,7 @@ class TaskSwitcherView(
     private var busy = false
     private var currentState: SlotState = SlotState.Empty
     private var waiting = false
+    private var stateRendered = false
     private var ownsDrag = false
     private val backgroundSwipe = SlotBackgroundSwipeGesture(
         view = this,
@@ -71,7 +72,8 @@ class TaskSwitcherView(
         setOnClickListener {
             // The coordinator serializes exchanges and retains the latest selection.
             // Filtering busy taps here prevents that queue from ever receiving them.
-            if (currentState is SlotState.Ready || currentState is SlotState.Occupied) {
+            if (currentState is SlotState.Ready || currentState is SlotState.Occupied ||
+                currentState is SlotState.Failed) {
                 listener?.onSlotClicked(slotIndex)
             }
         }
@@ -114,9 +116,8 @@ class TaskSwitcherView(
     }
 
     fun showState(state: SlotState) {
-        if (state is SlotState.Occupied && state == currentState &&
-            !waiting && isAttachedToWindow
-        ) return
+        if (stateRendered && state == currentState && !waiting) return
+        stateRendered = true
         if (state != currentState || waiting) backgroundSwipe.cancel()
         waiting = false
         val previousState = currentState
@@ -180,12 +181,13 @@ class TaskSwitcherView(
 
     fun capturePreview(): Bitmap? = runCatching {
         val bitmap = textureView.bitmap ?: return@runCatching null
-        // The rail's view subtree is rotated clockwise in landscape. TextureView
-        // returns its logical portrait buffer; previews use physical screen axes.
-        if (resources.displayMetrics.widthPixels > resources.displayMetrics.heightPixels) {
+        // TextureView returns its logical portrait buffer. Follow the rail's
+        // actual transform so reverse-landscape drag/swap previews face correctly.
+        val panelRotation = (parent as? View)?.rotation ?: 0f
+        if (panelRotation != 0f) {
             try {
                 Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height,
-                    android.graphics.Matrix().apply { postRotate(90f) }, true)
+                    android.graphics.Matrix().apply { postRotate(panelRotation) }, true)
             } finally { bitmap.recycle() }
         } else bitmap
     }.getOrNull()

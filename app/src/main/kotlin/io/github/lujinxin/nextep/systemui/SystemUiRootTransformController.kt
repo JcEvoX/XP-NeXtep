@@ -1,12 +1,15 @@
 package io.github.lujinxin.nextep.systemui
 
 import android.graphics.Rect
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import io.github.lujinxin.nextep.launcher.TouchCoordinateMapper
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.workspace.WorkspaceGeometry
+import java.lang.ref.WeakReference
 import java.util.WeakHashMap
 import kotlin.math.roundToInt
 
@@ -23,6 +26,15 @@ object SystemUiRootTransformController {
 
     private val roots = WeakHashMap<View, OriginalTransform>()
     private val transformedRoots = WeakHashMap<View, Boolean>()
+    private val shadeMonitors = WeakHashMap<View, Runnable>()
+    private val monitorHandler = Handler(Looper.getMainLooper())
+    private val shadeAttachListener = object : View.OnAttachStateChangeListener {
+        override fun onViewAttachedToWindow(view: View) = Unit
+
+        override fun onViewDetachedFromWindow(view: View) {
+            restore(view)
+        }
+    }
     private var active = false
     private var geometry: WorkspaceGeometry? = null
 
@@ -45,7 +57,7 @@ object SystemUiRootTransformController {
         }
     }
 
-    fun setActive(requestedActive: Boolean) {
+    fun setActive(requestedActive: Boolean, fitExistingShade: Boolean = true) {
         active = requestedActive
         if (active) {
             // A top-corner workspace gesture can be confirmed while the shade is already open.
@@ -53,8 +65,9 @@ object SystemUiRootTransformController {
             // subsequent downward shade gesture to start its transform. Apply all live observed
             // shade roots as part of activation so an already-rendered control centre moves into
             // the content viewport immediately.
-            beginObservedShadeTransform()
+            if (fitExistingShade) beginObservedShadeTransform()
         } else {
+            shadeMonitors.keys.toList().forEach(::stopMonitoring)
             roots.keys.toList().forEach(::restore)
             transformedRoots.clear()
         }
@@ -134,6 +147,8 @@ object SystemUiRootTransformController {
     }
 
     private fun restore(view: View) {
+        stopMonitoring(view)
+        transformedRoots.remove(view)
         SystemUiShadeInputController.restore(view)
         val original = roots[view] ?: return
         view.pivotX = original.pivotX
@@ -143,19 +158,34 @@ object SystemUiRootTransformController {
         view.translationX = original.translationX
         view.translationY = original.translationY
         view.clipBounds = original.clipBounds
-        transformedRoots.remove(view)
     }
 
     private fun monitorUntilCollapsed(view: View) {
-        view.postDelayed({
-            if (!active || view.parent == null || view.windowVisibility != View.VISIBLE ||
-                !view.isShown
-            ) {
-                restore(view)
-                return@postDelayed
+        if (shadeMonitors.containsKey(view)) return
+        // The runnable must not strongly retain the WeakHashMap's View key.
+        val rootReference = WeakReference(view)
+        val monitor = object : Runnable {
+            override fun run() {
+                val root = rootReference.get() ?: return
+                if (shadeMonitors[root] !== this) return
+                if (!active || !root.isAttachedToWindow || root.parent == null ||
+                    root.windowVisibility != View.VISIBLE || !root.isShown ||
+                    transformedRoots[root] != true
+                ) {
+                    restore(root)
+                    return
+                }
+                monitorHandler.postDelayed(this, SHADE_VISIBILITY_POLL_MS)
             }
-            if (transformedRoots[view] == true) monitorUntilCollapsed(view)
-        }, SHADE_VISIBILITY_POLL_MS)
+        }
+        shadeMonitors[view] = monitor
+        view.addOnAttachStateChangeListener(shadeAttachListener)
+        monitorHandler.postDelayed(monitor, SHADE_VISIBILITY_POLL_MS)
+    }
+
+    private fun stopMonitoring(view: View) {
+        shadeMonitors.remove(view)?.let(monitorHandler::removeCallbacks)
+        view.removeOnAttachStateChangeListener(shadeAttachListener)
     }
 
     private fun transformFor(): TouchCoordinateMapper.Transform {

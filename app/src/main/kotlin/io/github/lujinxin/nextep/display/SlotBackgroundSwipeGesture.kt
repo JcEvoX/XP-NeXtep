@@ -111,7 +111,7 @@ internal class SlotBackgroundSwipeGesture(
                                 outwardDistance >= flingDistanceThreshold &&
                                 outwardVelocity >= minimumFlingVelocity)
                         ) {
-                            val dismissed = onDismiss(candidate)
+                            val dismissed = dismiss(candidate)
                             NeXtepLog.info("slot_swipe", "slot=${candidate.slotIndex} background=$dismissed")
                         }
                     } catch (error: Throwable) {
@@ -129,14 +129,43 @@ internal class SlotBackgroundSwipeGesture(
         return consumed
     }
 
-    /** Drain the current touch stream after a task, layout, or lifecycle change. */
+    private fun dismiss(candidate: SlotTaskDrag): Boolean {
+        // setBusy/showState can cancel this gesture inside onDismiss. Finish
+        // owning its transform first, so that cancellation cannot reveal the
+        // old buffer at full opacity while the native task leaves the display.
+        // Keep the coordinator's drag ownership until the move returns.
+        active = false
+        view.textureView.animate().cancel()
+        view.textureView.alpha = 0f
+        view.textureView.translationX = 0f
+        view.parent?.requestDisallowInterceptTouchEvent(false)
+        var dismissed = false
+        try {
+            dismissed = onDismiss(candidate)
+            return dismissed
+        } finally {
+            if (!dismissed && candidate == currentTask()) {
+                // A rejected/rolled-back move must remain usable. A replacement
+                // task or a waiting view owns its own presentation instead.
+                view.textureView.animate().cancel()
+                view.textureView.scaleX = 1f
+                view.textureView.scaleY = 1f
+                view.textureView.alpha = 1f
+            }
+            onEnded()
+        }
+    }
+
+    /** Drain moved gestures after a task, layout, or lifecycle change. */
     fun cancel() {
         val wasActive = active
         active = false
         task = null
         velocityTracker?.recycle()
         velocityTracker = null
-        if (tracking) {
+        // View posts performClick after UP. An earlier click may finish its
+        // exchange after the next DOWN; do not cancel that untouched next tap.
+        if (tracking && (consumed || wasActive)) {
             consumed = true
             view.isPressed = false
             view.cancelLongPress()

@@ -210,8 +210,8 @@ class SlotTaskCoordinator(
     fun setSuspended(value: Boolean) {
         ensureMainThread()
         if (!active || suspended == value) return
-        suspended = value
         if (value) {
+            suspended = true
             cancelPendingDragExchange()
             onSlotDragEnded()
             recentSelectionGeneration += 1
@@ -221,9 +221,21 @@ class SlotTaskCoordinator(
             pendingSelection = null
             mainSelectionGeneration += 1
             clearPromotedTaskRecovery()
-            slots.forEach { it.view.setBusy(true) }
+            slots.forEach {
+                it.view.setBusy(true)
+                it.setSuspended(true)
+            }
         } else {
+            slots.forEach { slot ->
+                runCatching { slot.setSuspended(false) }.onFailure {
+                    // One delayed/invalid preview Surface must not keep HOME and
+                    // all SystemUI panels hidden. Retry that slot in reconciliation.
+                    NeXtepLog.warn("virtual_display", "Output resume pending display=${slot.displayId()}", it)
+                }
+            }
+            suspended = false
             slots.forEach { it.view.setBusy(false) }
+            handler.removeCallbacks(reconciliation)
             handler.post(reconciliation)
         }
     }
@@ -513,13 +525,22 @@ class SlotTaskCoordinator(
         if (transitionInProgress || recentSelectionPending) {
             val selectedTaskId = (slotRecords[slotIndex].state as? SlotState.Occupied)?.taskId
             pendingSelection = {
-                // Select the app that was tapped, even if the preceding move changed slots.
+                // Keep the tapped app if an in-flight move changes its slot.
                 val selectedSlot = if (selectedTaskId == null) slotIndex else
                     slotRecords.indexOfFirst { (it.state as? SlotState.Occupied)?.taskId == selectedTaskId }
                 if (selectedSlot >= 0) onSlotClicked(selectedSlot)
             }
             NeXtepLog.info("slot_coordinator", "Queued slot tap slot=$slotIndex")
             return
+        }
+        if (slotRecords[slotIndex].state is SlotState.Failed) {
+            // A failed layout is not necessarily an empty display. Reconcile its
+            // actual owner before accepting another task into the visible '+' slot.
+            reconcile("retry failed slot tap")
+            if (slotRecords[slotIndex].state is SlotState.Failed) {
+                showMessage("小窗布局暂未恢复，请稍后重试")
+                return
+            }
         }
         when (val state = slotRecords[slotIndex].state) {
             is SlotState.Occupied -> runTransition(
@@ -1102,6 +1123,9 @@ class SlotTaskCoordinator(
                     "main and slot exchanged",
                 )
             } else {
+                // Promotion intentionally emptied the slot. An old migration
+                // recovery would otherwise relaunch this live task back into it,
+                // leaving the visible '+' blocked by pendingComponent.
                 clearSlotAssignment(slotIndex)
                 setState(slotIndex, SlotState.Ready(occupied.displayId), "slot promoted to main")
             }
@@ -1175,10 +1199,11 @@ class SlotTaskCoordinator(
                 NeXtepLog.error("slot_coordinator", "Transition failed $label", error)
                 if (animation != null) showMessage("交换未完成，已尝试恢复原窗口")
             }
-            // Logical display/layout completion unlocks input; visual reconciliation
-            // keeps its own delay without discarding further selections.
+            // As in 1.1.1, serialize logical moves only. Shell's later animation
+            // must not turn the visual reconciliation delay into an input lock.
             transitionInProgress = false
             slots.forEach { it.view.setBusy(suspended || recentSelectionPending) }
+            NeXtepLog.info("slot_coordinator", "Transition move completed $label")
             dispatchPendingSelection()
             handler.postDelayed({
                 reconcile("settled $label")
@@ -1219,6 +1244,11 @@ class SlotTaskCoordinator(
         val assignedTaskIds = mutableSetOf<Int>()
 
         slots.forEachIndexed { index, slot ->
+            if (slot.isSuspended()) {
+                runCatching { slot.setSuspended(false) }.onFailure {
+                    NeXtepLog.warn("virtual_display", "Output reattachment pending slot=$index", it)
+                }
+            }
             val displayId = slot.displayId() ?: run {
                 setState(index, SlotState.Empty, "$reason: no display")
                 return@forEachIndexed
@@ -1277,18 +1307,16 @@ class SlotTaskCoordinator(
                     setState(index, SlotState.Failed("duplicate task"), "$reason: retained duplicate")
                 }
                 retainedTask != null -> {
-                    val foregroundTaskId = taskRepository.foregroundTask()?.taskId
+                    val foregroundTaskId = tasks.firstOrNull {
+                        it.displayId == Display.DEFAULT_DISPLAY
+                    }?.taskId
                     if (retainedTask.displayId == Display.DEFAULT_DISPLAY &&
                         retainedTask.taskId == foregroundTaskId
                     ) {
                         val originalLayout = slotRecords[index].originalLayout
                             ?: defaultMainLayout(retainedTask.resizeMode)
                         runCatching {
-                            restoreTaskLayout(
-                                retainedTask,
-                                originalLayout,
-                                restoreResizeMode = false,
-                            )
+                            restoreExternalFullscreenLayout(retainedTask, originalLayout)
                             clearSlotAssignment(index)
                             setState(
                                 index,
@@ -1477,7 +1505,8 @@ class SlotTaskCoordinator(
     }
 
     private fun reconcileForeground(reason: String) {
-        val foreground = taskRepository.foregroundTask() ?: return
+        val tasks = taskRepository.runningTasks()
+        val foreground = tasks.firstOrNull { it.displayId == Display.DEFAULT_DISPLAY } ?: return
         val promotedSlot = slotRecords.indexOfFirst { record ->
             record.retainedTaskId == foreground.taskId &&
                 foreground.displayId == Display.DEFAULT_DISPLAY
@@ -1487,7 +1516,7 @@ class SlotTaskCoordinator(
             val originalLayout = record.originalLayout
                 ?: defaultMainLayout(foreground.resizeMode)
             runCatching {
-                restoreTaskLayout(foreground, originalLayout, restoreResizeMode = false)
+                restoreExternalFullscreenLayout(foreground, originalLayout)
                 clearSlotAssignment(promotedSlot)
                 val displayId = slots[promotedSlot].displayId()
                 setState(
@@ -1504,7 +1533,10 @@ class SlotTaskCoordinator(
                 return
             }
         }
-        mainTaskPresenter.reconcileForeground(geometryProvider())
+        // Reuse this pass's snapshot. A fullscreen promotion restores layout, so that path
+        // needs a fresh query before the presenter reads windowing mode/bounds.
+        val presentationTasks = if (promotedSlot >= 0) taskRepository.runningTasks() else tasks
+        mainTaskPresenter.reconcileForeground(geometryProvider(), presentationTasks)
             .onFailure { error ->
                 NeXtepLog.warn(
                     "main_task_presenter",
@@ -1526,6 +1558,14 @@ class SlotTaskCoordinator(
             .setComponent(component)
             .addCategory(Intent.CATEGORY_LAUNCHER)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+
+    private fun restoreExternalFullscreenLayout(task: TaskRepository.TaskSnapshot, layout: TaskLayout) {
+        // A notification or native window gesture may promote a slot task into
+        // freeform/PiP. Shell already chose its bounds, density and windowing mode.
+        // Relinquish the slot without restoring the former fullscreen layout.
+        if (task.vendorWindowed || task.windowingMode != fullscreenWindowingMode()) return
+        restoreTaskLayout(task, layout, restoreResizeMode = false)
     }
 
     private fun normalizeExternalIntent(source: Intent): Intent? {
@@ -1563,10 +1603,15 @@ class SlotTaskCoordinator(
                 defaultMainLayout(task.resizeMode)
             }
         }
-        val resizeModeMismatch = task.resizeMode != TASK_RESIZE_MODE_RESIZEABLE
-        val layoutMismatch = task.bounds != targetBounds ||
-            task.densityDpi != slotGeometry.densityDpi ||
-            task.windowingMode != fullscreenMode
+        // Callers may hold the snapshot from before reparenting. Compare against
+        // the destination task, otherwise every exchange forces another relayout.
+        val current = if (task.displayId != slots[slotIndex].displayId()) {
+            taskRepository.findTask(task.taskId) ?: error("Task ${task.taskId} exited")
+        } else task
+        val resizeModeMismatch = current.resizeMode != TASK_RESIZE_MODE_RESIZEABLE
+        val layoutMismatch = current.bounds != targetBounds ||
+            current.densityDpi != slotGeometry.densityDpi ||
+            current.windowingMode != fullscreenMode
         if (resizeModeMismatch) {
             ActivityTaskManagerCompat.setTaskResizeable(
                 task.taskId,
@@ -1574,10 +1619,12 @@ class SlotTaskCoordinator(
             ).getOrThrow()
         }
         if (layoutMismatch) {
-            val token = task.token ?: error("Task ${task.taskId} has no slot layout token")
+            val token = current.token ?: error("Task ${task.taskId} has no slot layout token")
             WindowContainerTransactionCompat.applyTaskLayout(
                 token = token,
-                bounds = targetBounds,
+                // Fullscreen inherits this virtual display's canvas. An explicit
+                // slot-sized override survives promotion and forces a second resize.
+                bounds = Rect(),
                 densityDpi = slotGeometry.densityDpi,
                 windowingMode = fullscreenMode,
             ).getOrThrow()
@@ -1594,7 +1641,9 @@ class SlotTaskCoordinator(
             )
         }
         slots[slotIndex].displayId()?.let { displayId ->
-            TaskSurfaceCompat.fitSlotSurface(task.taskId, displayId).getOrThrow()
+            val source = slots[slotIndex].sourceBounds()
+            TaskSurfaceCompat.fitSlotSurface(task.taskId, displayId,
+                Rect(source.left, source.top, source.right, source.bottom)).getOrThrow()
         }
     }
 
@@ -1604,15 +1653,31 @@ class SlotTaskCoordinator(
         restoreResizeMode: Boolean = true,
     ) {
         val token = task.token ?: error("Task ${task.taskId} has no restore token")
+        val current = taskRepository.findTask(task.taskId)
+        val mainFullscreen = current?.displayId == Display.DEFAULT_DISPLAY &&
+            layout.windowingMode == fullscreenWindowingMode()
+        val expectedBounds = if (mainFullscreen) geometryProvider().let {
+            Rect(0, 0, it.screenWidth, it.screenHeight)
+        } else layout.bounds
+        if (mainFullscreen &&
+            current?.bounds == expectedBounds && current.densityDpi == layout.densityDpi &&
+            current.windowingMode == layout.windowingMode) {
+            if (restoreResizeMode) layout.resizeMode?.let {
+                ActivityTaskManagerCompat.setTaskResizeable(task.taskId, it).getOrThrow()
+            }
+            return
+        }
+        // Fullscreen tasks inherit display bounds. Clear the slot override once;
+        // restoring a saved resolved Rect and clearing it again adds another layout.
         WindowContainerTransactionCompat.applyTaskLayout(
             token = token,
-            bounds = layout.bounds,
+            bounds = if (mainFullscreen) Rect() else layout.bounds,
             densityDpi = layout.densityDpi,
             windowingMode = layout.windowingMode,
         ).getOrThrow()
         waitForTaskLayout(
             taskId = task.taskId,
-            bounds = layout.bounds,
+            bounds = expectedBounds,
             densityDpi = layout.densityDpi,
             windowingMode = layout.windowingMode,
         )

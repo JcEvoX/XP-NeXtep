@@ -61,6 +61,12 @@
             android:name=".config.WorkspaceConfigReceiver"
             android:exported="true"
             android:permission="android.permission.STATUS_BAR_SERVICE" />
+
+        <provider
+            android:name=".config.WorkspaceConfigProvider"
+            android:authorities="io.github.lujinxin.nextep.workspace.config"
+            android:exported="true"
+            android:permission="android.permission.STATUS_BAR_SERVICE" />
     </application>
 
 </manifest>

@@ -55,8 +55,13 @@ object TopTextStyle {
 
     fun familyLabel(value: String): String = families.firstOrNull { it.first == value }?.second ?: "系统默认"
 
-    fun resolveFamily(value: String?): String =
-        value?.takeIf { family -> families.any { it.first == family } } ?: DEFAULT_FAMILY
+    fun resolveFamily(value: String?): String {
+        // Most config queries use a generic font. Do not scan all OEM font files
+        // on the module's main thread just to acknowledge that preference.
+        if (value == null) return DEFAULT_FAMILY
+        if (genericFamilies.any { it.first == value }) return value
+        return value.takeIf { family -> systemFonts.any { it.id == family } } ?: DEFAULT_FAMILY
+    }
 
     fun typeface(family: String, bold: Boolean): Typeface {
         val resolved = resolveFamily(family)

@@ -3,16 +3,29 @@ package io.github.lujinxin.nextep.framework
 import android.graphics.Rect
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import java.lang.reflect.Method
+import java.util.concurrent.ConcurrentHashMap
 
 object WindowContainerTransactionCompat {
     @Volatile private var defaultTaskDisplayArea: Any? = null
+    private val taskDisplayAreas = ConcurrentHashMap<Int, Any>()
 
     fun observeDisplayArea(info: Any) {
         val type = info.javaClass
-        if (type.getField("displayId").getInt(info) == 0 &&
-            type.getField("featureId").getInt(info) == 1) {
-            defaultTaskDisplayArea = type.getField("token").get(info)
+        if (type.getField("featureId").getInt(info) == 1) {
+            val displayId = type.getField("displayId").getInt(info)
+            val token = type.getField("token").get(info) ?: return
+            taskDisplayAreas[displayId] = token
+            if (displayId == 0) defaultTaskDisplayArea = token
         }
+    }
+
+    fun forgetDisplayArea(info: Any) {
+        val type = info.javaClass
+        if (type.getField("featureId").getInt(info) != 1) return
+        val id = type.getField("displayId").getInt(info)
+        val token = type.getField("token").get(info) ?: return
+        taskDisplayAreas.remove(id, token)
+        if (id == 0 && defaultTaskDisplayArea == token) defaultTaskDisplayArea = null
     }
 
     /** Reparent below existing default-display tasks, without briefly foregrounding each app. */
