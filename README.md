@@ -28,73 +28,148 @@
 
 # NeXtep
 
-**NeXtep** is an **LSPosed module** that adds a **native side workspace** to ColorOS 16 / 17 while keeping the **stock launcher**. It provides **one main window and three live task slots**, supports task exchanges by tap or drag and adding apps from Recents, and integrates workspace controls into SystemUI.
+**NeXtep** is an **LSPosed module** that adds a **native side workspace** to ColorOS 16 / 17 while keeping the **stock launcher**. It provides **one main window and three live task slots**, with task switching, drag-and-drop, media controls, and customizable app shortcuts integrated into SystemUI.
 
-The project primarily targets **OnePlus PLK110**, previously verified on **Android 16 / ColorOS 16**. Feature and compatibility testing for the latest version is based on **Android 17 / ColorOS 17**. It relies on private Android and ColorOS behavior, so **other devices, ROM versions, and vendor launchers require adaptation**.
+The project primarily targets **OnePlus PLK110**, previously verified on **Android 16 / ColorOS 16**. Recent feature and compatibility testing is based on **Android 17 / ColorOS 17**. It relies on private Android and ColorOS behavior, so **other devices, ROM versions, and vendor launchers require adaptation**.
 
-## Demo video
+[Download and release notes](https://github.com/lujinxin/NeXtep/releases) · [Demo video on Bilibili](https://www.bilibili.com/video/BV1iKHj6fEtL)
 
-[Watch the NeXtep demo on Bilibili](https://www.bilibili.com/video/BV1iKHj6fEtL)
+This README describes the current features and how to use them. Version-specific changes and fixes are recorded in [GitHub Releases](https://github.com/lujinxin/NeXtep/releases).
 
-## What's new in 1.2.2
+[Features](#features) · [Requirements](#requirements) · [Installation](#installation) · [Workspace controls](#open-and-close-the-workspace) · [External commands](#external-commands) · [Behavior switches](#behavior-switches)
 
-- **Landscape video in slots:** fixes incorrect proportions, shrunken video, and large black borders when moving fullscreen landscape video into a slot, using shared adaptation logic.
-- **Floating-player sizing:** fixes incorrect floating-player dimensions after dragging a slot app to the top control area to move it to the background.
-- **App strip loading and caching:** improves app-list loading and configuration caching to reduce intermittent missing icons in the control area.
-- **Advanced page:** provides Shell commands for external tools to enter or exit workspace mode and query its current state.
-- **Internationalization:** adds Simplified Chinese, Traditional Chinese, English, Japanese, and Korean interfaces.
-- **Other fixes:** fixes other known issues.
+## Features
 
-## What's new in 1.2.1
+### Workspace and layout
 
-- **Rewritten navigation-button adaptation:** adds a “虚拟按键适配” (Navigation-button adaptation) switch, improving workspace layout and navigation-bar display with three-button navigation.
-- **Both landscape orientations:** keeps the control area at the phone's physical top while the main-window app rotates with the landscape direction.
-- **App strip recovery:** fixes app icons occasionally disappearing and requiring a switch between automatic and manual ordering to return.
-- **Keyboard focus during window switches:** improves focus handoff between the main window and slots, reducing cases where the keyboard fails to appear, opens unexpectedly, or covers slots.
-- **Slot swipe dismissal:** fixes old previews or colored blocks briefly flashing when a slot app is swiped to the background.
-- **Native floating windows:** improves layering and switching animations, reducing cases where workspace controls are obscured or briefly disappear.
-- **Assistant-panel fullscreen recovery:** fixes the assistant panel failing to return to fullscreen after closing the workspace through the system Control Center.
-- **Lock and unlock recovery:** pauses slot output while locked, then restores display output after unlocking while retaining existing tasks.
-- **Reduced runtime overhead:** reduces repeated task queries and unnecessary background checks, and stops related monitoring when the workspace closes.
-- **Media card layout:** adjusts artwork size in smaller control areas to reduce content clipping.
+- **Stock launcher:** keeps the ColorOS launcher without registering a replacement HOME app, with adaptations for launcher shortcut menus, desktop search, and the assistant panel.
+- **One main window and three live slots:** keep several app tasks visible together and move whole tasks between the main window and slots.
+- **Left and right layouts:** switch the slot sidebar using the layout buttons in the control area.
+- **Portrait and both landscape orientations:** keep the controls at the phone's physical top while the main app follows the landscape direction. The controls and three slots remain available during landscape video playback.
+- **Navigation-button adaptation:** optionally fit the main window and slots around the system navigation bar. Enable it for three-button navigation and disable it for gesture navigation; after changing the system navigation mode, toggle the option again.
+- **Task retention:** restore eligible slot tasks that remain in the system when closing and reopening the workspace. Locking pauses slot output; unlocking restores the workspace with its tasks.
+- **System integration:** coexists with native floating windows above the workspace panels, and includes adaptations for keyboard focus, notification shade and Control Center interaction, brightness controls, and video-window sizing.
 
-## What's new in 1.2.0
+### Task management
 
-- **Swipe slot apps to the background:** swipe left on left-side slots or right on right-side slots. A Settings switch is enabled by default; the existing option to long-press and drag a slot to the top control area remains available.
-- **System app clone support:** cloned apps can now appear in the top app strip and manual ordering list.
-- **Automatic navigation-bar adaptation:** the main window and slots automatically avoid on-screen navigation buttons and adjust when the navigation mode changes or the screen rotates.
-- **Improved media card backgrounds:** uses frosted wallpaper when no media is available, or a soft gradient drawn from the track artwork when available. The colors remain while paused; missing or unusable artwork falls back to frosted wallpaper.
-- **Redrawn playback controls:** unifies the size, proportions, and visual style of the previous, play/pause, and next buttons.
-- **Settings interface fix:** fixes jitter during inertial scrolling on the Settings and About pages.
-- **Preserve workspace mode:** fixes the workspace closing unexpectedly when opening NeXtep or tapping the control area's gear button to open Settings.
-- **Intermittent black background fix:** improves the stability of control-area and slot backgrounds when entering workspace mode from an app.
-- **Desktop search Back fix:** fixes Back gestures and the on-screen Back button failing to exit desktop search in workspace mode.
+| Action | How to use it |
+|--------|---------------|
+| Put the main app in a slot | With a regular app in the main window, tap the **+** in an empty slot. |
+| Add from Recents | Center the desired task card in system Recents, then tap an empty slot's **+**. Recents stays open so you can add more apps. Exit split screen before adding a grouped split-screen card. |
+| Exchange a slot with the main window | Tap an occupied slot, or long-press it and drag it onto the main window. |
+| Move or exchange slots | Long-press an occupied slot and drag it onto an empty slot to move, or another occupied slot to exchange. Drop targets are highlighted during dragging. |
+| Open an app in the main window | Tap its icon in the app strip. |
+| Add from the app strip | Long-press an app icon and drag it onto the target slot. |
+| Move a slot app to the background | Swipe outward: left for left-side slots, right for right-side slots. No long press is needed. This gesture can be disabled in Settings. |
+| Move to the background by dragging | Long-press a slot and drag it onto the control area; release when **Release to move to background** appears. This remains available when swipe dismissal is disabled. |
 
-## What's new in 1.1.1
+Moving a slot app to the background frees the slot while retaining its task and leaving the main window unchanged. Opening an app from the launcher when it already occupies a slot exchanges it with the main window.
 
-- **Redesigned interface:** moves Settings and About navigation to the bottom, adds liquid-glass effects, and improves colors, page layout, and header spacing. The Control Center tile entry is integrated into the settings list.
-- **Status-bar gesture switch:** enable or disable the status-bar workspace gesture in Settings; enabled by default.
-- **Automatically park the previous main app:** when enabled, switching apps from the top strip moves the previous main app into an empty slot, or switches normally if none is available; disabled by default.
-- **Window switching improvements:** reduces repeated scaling, screen flicker, and delays during consecutive switches, and fixes disappearing plus buttons in empty slots.
-- **Control Center and notification shade interaction:** fixes workspace control buttons and slots becoming unresponsive after opening a system panel.
-- **Launcher shortcut menu fixes:** fixes sidebar obstruction, misplaced taps, and clipped menu content when long-pressing icons inside a folder.
-- **Keyboard recovery after exit:** fixes the keyboard failing to reopen when tapping an input field after showing it in workspace mode and exiting to fullscreen.
+The optional **Park the previous main app when switching** setting moves the previous main app into an empty slot when switching from the app strip. If no empty slot is available, the app switch proceeds normally. It is disabled by default.
 
-## What's new in 1.1.0
+### App strip and cloned apps
 
-- **Drag and exchange slot tasks:** long-press a slot and drop it onto another slot or the main window. Supports moving into empty slots, exchanging occupied slots, target highlighting, and placement animations in portrait and landscape.
-- **Move a slot app to the background:** drop it onto the control area when the “松手移到后台” (Release to move to background) hint appears, preserving the task and current main window. App-icon and slot drags no longer trigger the ColorOS drag-and-share panel.
-- **Add apps consecutively from Recents:** center a task card and tap the plus in an empty slot. Recents stays open after adding an app, including when the third slot is filled.
-- **Open the playback app from its media card:** tap the artwork, title, or another area outside the playback buttons to open the app or exchange it with the main window if it occupies a slot. Previous, play/pause, and next retain their media-control actions.
-- **Customize scrolling text and typography:** enable looping for both short and long text; disable it for centered text with ellipsis on overflow. Search, preview, and select fonts installed on the device, with 10–28 sp sizes and bold styling.
-- **Updated settings interface:** adds separate Settings and About pages, consistent groups and colors, and light/dark themes. Update checks, releases, source links, and license information are grouped in About.
-- **ColorOS 17 wallpaper and assistant compatibility:** fixes workspace backgrounds that differ from the current live wallpaper, plus duplicated scaling and misplaced input on the assistant panel's profile and settings pages.
-- **Return landscape video to a slot:** improves exiting fullscreen during slot placement. The verified Bilibili scenarios restore the complete portrait page while preserving playing or paused state.
-- **Brightness mirror positioning:** fixes the floating brightness slider offset during a held drag in workspace mode. Verified with both sidebar positions, the long-press brightness panel, and fullscreen mode after exiting the workspace.
+- **Automatic ordering:** arrange app shortcuts by recent usage; this is the default mode.
+- **Manual ordering:** choose up to **36 apps**, remove shortcuts, and long-press selected entries to reorder them.
+- **System app clones:** show cloned apps in the app strip and manual selection list, with clone labels to distinguish them from the original apps.
+
+### Media controls
+
+- Display track artwork, title, and artist information from the active system media session, with **previous**, **play/pause**, and **next** controls as supported by the playback app.
+- Tap the artwork, title, or another area outside the playback buttons to open the playback app in the main window. If it occupies a slot, it exchanges with the main window.
+- Use a soft gradient drawn from the track artwork, retaining the colors while paused. With no media session or usable artwork, the card falls back to frosted wallpaper.
+
+### Appearance and text
+
+The control area and slot backgrounds use the wallpaper, including adaptations for ColorOS live wallpaper. Frosting leaves app content sharp.
+
+| Setting | Options and behavior |
+|---------|----------------------|
+| Top content | NeXtep icon, time, date and weekday, blank, or custom text. The default is the icon; mode changes take effect immediately. |
+| Clock seconds | Optional, disabled by default; the switch appears beside the time option. |
+| Custom text | The editor appears in custom-text mode. Drafts are remembered when switching modes; tap **Save text** to apply edits. |
+| Looping text | Disabled by default. Enable continuous scrolling for both short and long text; otherwise text is centered and overflow is ellipsized. Scrolling pauses while the workspace is hidden. |
+| Font | Search, preview, and select fonts installed on the device, or choose a generic font family. System default follows the device's font setting. |
+| Text size and weight | **10–28 sp**, default **16 sp**, with optional bold styling and an input preview. |
+| Frost strength | **0–100**, default **50**. Release the slider to save and apply the value to the control area and slot backgrounds. |
+
+### Settings, languages, and updates
+
+- **Settings / Advanced / About:** use bottom navigation to switch between workspace settings, external-control commands, and project information. The settings interface follows the system's light or dark theme and uses a liquid-glass bottom navigation bar.
+- **Languages:** follow the system or select **Simplified Chinese, Traditional Chinese, English, Japanese, or Korean** for the app and workspace.
+- **Settings shortcut:** tap the control area's gear button to open NeXtep settings while keeping workspace mode active.
+- **About:** view the installed version, check for updates, open release and source pages, and read license information and acknowledgements.
+- **Update download:** view available release notes and open the APK download in a browser. Downloaded updates are installed manually.
+
+## Requirements
+
+- **OnePlus PLK110**: previously verified on **Android 16 / API 36, ColorOS 16**; recent partial device testing uses **Android 17 / API 37, ColorOS 17**. The APK minimum is API 35, which does not imply compatibility with every device on that API level.
+- A matching **ColorOS 16 / 17** build on an adapted device.
+- **KernelSU** or another compatible root solution.
+- **Zygisk and LSPosed** with modern libxposed API support.
+- Enable the module for all applicable packages in the bundled [scope list](app/src/main/resources/META-INF/xposed/scope.list), including SystemUI, system framework, launcher, app-clone service, and assistant panel.
+
+This module modifies **SystemUI, Launcher, and system-server behavior**. **Keep a working recovery path**, and disable the module if the device enters a boot loop or core UI becomes unstable.
+
+Testing has not covered every app or edge case. Other devices and ROMs require separate adaptation; untested configurations have no compatibility guarantee.
+
+## Installation
+
+1. Download the APK from [GitHub Releases](https://github.com/lujinxin/NeXtep/releases), or build it using [docs/BUILDING.md](docs/BUILDING.md).
+2. Install it on the target device.
+3. Enable NeXtep in LSPosed for all applicable packages in the bundled scope list.
+4. Reboot the device.
+5. Open NeXtep's **Settings** page to configure the workspace and add its Control Center tile.
+
+## Open and close the workspace
+
+After enabling the module and rebooting, unlock the device. Use any of these entry points:
+
+- **Status-bar gesture:** swipe horizontally to the left from the top-right status-bar area. Swiping down still opens the system notification shade or Control Center. The gesture is enabled by default and can be disabled independently.
+- **Control Center tile:** in NeXtep's Settings, tap **Add** in the **Control Center entry** row and confirm. Pull down Control Center and tap **NeXtep** to toggle the workspace. If adding it from the app fails, use Control Center's edit screen.
+- **External commands:** copy commands from the **Advanced** page into a gesture, shortcut, automation, or terminal tool; see below.
+- **Exit button:** tap the exit button in the workspace control area to return to fullscreen.
+
+### External commands
+
+The **Advanced** page provides copy buttons for entering, exiting, and querying workspace mode. The module must be enabled and the device rebooted; run entry and exit commands with **Root privileges while the phone is unlocked**.
+
+Enter the workspace:
+
+```sh
+am broadcast -n io.github.lujinxin.nextep/.trigger.WorkspaceControlBrokerReceiver -a io.github.lujinxin.nextep.action.HOST_SET_REQUEST --ez io.github.lujinxin.nextep.extra.REQUESTED_ACTIVE true
+```
+
+Exit the workspace:
+
+```sh
+am broadcast -n io.github.lujinxin.nextep/.trigger.WorkspaceControlBrokerReceiver -a io.github.lujinxin.nextep.action.HOST_SET_REQUEST --ez io.github.lujinxin.nextep.extra.REQUESTED_ACTIVE false
+```
+
+Query the current state:
+
+```sh
+settings get global nextep_workspace_active_v1
+```
+
+The state is `1` while the workspace layout is active and `0` when inactive. Lock-screen suspension also publishes an inactive state; query after unlocking when using it in an automation.
+
+## Behavior switches
+
+These switches are on the **Settings** page; appearance and app ordering are described in the feature sections above.
+
+| Setting | Default | Behavior |
+|---------|---------|----------|
+| Status-bar gesture | On | Enable or disable the top-right horizontal gesture. The Control Center tile remains available. |
+| Swipe slot apps to the background | On | Enable or disable outward swipe dismissal. Dragging a slot to the control area remains available. |
+| Park the previous main app when switching | Off | Move the previous main app into an empty slot when switching from the app strip; switch normally if none is available. |
+| Navigation-button adaptation | Off | Enable for three-button navigation and disable for gesture navigation. Toggle again after changing the system navigation mode. |
 
 ## Architecture
 
-The diagram below shows how the regular APK process coordinates with the LSPosed-injected SystemUI, Launcher, and system-server processes to provide the workspace and its three task slots.
+The diagram shows how the regular APK coordinates with the LSPosed-injected SystemUI, stock launcher, assistant panel, app-clone service, and system_server. It separates main-window presentation from the three live slots and shows configuration reads, change notifications, and shared runtime state. Compatibility hooks are guarded individually and skip unavailable targets.
+
+[Architecture details](docs/ARCHITECTURE.md) · [Interactive diagram (download HTML to view)](docs/architecture/nextep-architecture.html) · [Diagram source](docs/architecture/nextep-architecture.json)
 
 <p align="center">
   <a href="assets/nextep-architecture.png">
@@ -102,83 +177,7 @@ The diagram below shows how the regular APK process coordinates with the LSPosed
   </a>
 </p>
 
-## Features
-
-- **Keeps the stock ColorOS launcher** instead of registering a replacement HOME app.
-- **Opens the workspace quickly** from a Quick Settings tile or a top-right status-bar gesture.
-- **Shows three live task slots** backed by lifecycle-bound virtual displays.
-- **Exchanges tasks by tap or drag** between the main window and a slot, or moves and exchanges apps between slots.
-- **Adds apps consecutively from Recents**, placing the centered task card in an empty slot while keeping Recents open.
-- **Moves slot apps to the background** with an outward swipe (right for right-side slots, left for left-side slots) or by dropping them onto the control area, freeing the slot without removing the task.
-- **Adapts the workspace for landscape video playback** while keeping the control strip and three task slots available, preserving sensor rotation, and restoring fullscreen tasks to system-managed bounds when landscape mode ends.
-- **Supports flexible layouts and controls**, including left- and right-side layouts, media controls, opening the playback app from its media card, wallpaper-backed panels, and configurable app shortcuts.
-- **Supports external workspace control**, with commands on the Advanced page for entering, exiting, and querying workspace mode.
-- **Provides five interface languages:** Simplified Chinese, Traditional Chinese, English, Japanese, and Korean.
-- **Remembers eligible slot tasks** across workspace sessions and preserves the workspace during lock/unlock.
-- **Customizes top content and background**, with icon, clock, date, blank and text modes, looping text, system fonts, text size, bold styling, and adjustable wallpaper blur.
-- **Coexists with native floating windows**, keeping them above workspace panels.
-- **Supports navigation-button adaptation**, fitting the main window and slots to the system navigation-bar boundaries when enabled. Rotation uses the corresponding layout; after changing the system navigation mode, toggle the adaptation option off and on again.
-- **Applies compatibility hooks defensively** and fails open when a supported target cannot be resolved.
-
-## Requirements
-
-- **OnePlus PLK110**: previously verified on **Android 16 / API 36, ColorOS 16**; this round uses **Android 17 / API 37, ColorOS 17** (the APK minimum is API 35)
-- A matching **ColorOS 16 / 17** build on an adapted device
-- **KernelSU** or another compatible root solution
-- **Zygisk and LSPosed** with modern libxposed API support
-- The module enabled for the packages listed in `app/src/main/resources/META-INF/xposed/scope.list`
-
-This module modifies **SystemUI, Launcher, and system-server behavior**. **Keep a working recovery path**, and disable the module if the device enters a boot loop or core UI becomes unstable.
-
-## Build
-
-See [docs/BUILDING.md](docs/BUILDING.md) for the required toolchain and build commands.
-
-## Installation
-
-1. Build or obtain the APK.
-2. Install it on the target device.
-3. Enable NeXtep in LSPosed for every package in the bundled scope list.
-4. Reboot the device.
-5. Use the Settings tab to configure top content, text styling, frosted background strength, and app ordering, then add its Quick Settings tile. The About tab provides version information and update checks.
-
-## Usage
-
-After enabling the module and rebooting, unlock the device. You can open or close the workspace in the following ways:
-
-- **Gesture:** swipe horizontally to the left from the top-right status-bar area; this gesture can be disabled in Settings. Swiping down opens the system notification shade or Control Center as usual.
-- **Control Center toggle:** open NeXtep's Settings page, tap **添加** (Add) in the **控制中心入口** (Control Center entry) row, and confirm. Then pull down Control Center and tap the **NeXtep** tile to toggle the workspace. If the tile cannot be added from the app, add it from Control Center's edit screen.
-- **External commands:** open the Advanced page and copy the Enter or Exit command into a gesture, shortcut, automation, or terminal tool. Run it with Root privileges while the phone is unlocked. A command for querying the current state is also available.
-
-With the workspace open, manage tasks as follows:
-
-- **Tap a slot:** exchange its app with the current main window. When a regular app occupies the main window, tapping an empty slot's plus moves that app into the slot.
-- **Add from the app strip:** long-press an app icon, drag it onto a slot, and release.
-- **Drag between windows:** long-press an occupied slot. Drop it onto an empty slot to move, an occupied slot to exchange, or the main window to exchange with the main app.
-- **Move to the background:** swipe directly outward on a slot, right for right-side slots or left for left-side slots, without a long press. You can also drag a slot to the control area and release when “松手移到后台” (Release to move to background) appears. The app task is retained and the current main window stays unchanged.
-- **Add from Recents:** open system Recents, center the target card, then tap an empty slot's plus. Add apps consecutively while Recents stays open; exit split screen before adding a grouped split-screen card.
-- **Open the playback app:** tap the media card's artwork or title. An app in a slot exchanges with the main window; otherwise it opens in the main window. The three transport buttons continue to control playback.
-- **Media background:** show the frosted wallpaper when no media session is available. Track artwork supplies a muted gradient that remains while paused; missing or unreadable artwork falls back to the wallpaper.
-
-## Settings
-
-- **Settings / Advanced / About:** switch pages using bottom navigation; configure workspace appearance and app ordering in Settings, copy external-control commands in Advanced, and find version information, updates, releases, source code, and acknowledgements in About.
-- **Status-bar gesture:** enabled by default and can be disabled independently. The Control Center tile remains available.
-- **Swipe slot apps to the background:** enabled by default and takes effect when changed. Disable it to keep slot apps from being parked by outward swipes; dragging to the control area remains available.
-- **Park the previous main app when switching:** disabled by default; when enabled, switching apps from the top strip moves the previous main app into an empty slot, or switches normally if none is available.
-- **Navigation-button adaptation:** disabled by default. Enable it for three-button navigation and disable it for gesture navigation. After changing the system navigation mode, toggle this option off and on again.
-- **Top content:** select NeXtep Icon, time, date and weekday, blank, or custom text. Selections take effect immediately. The seconds switch appears beside the time option.
-- **Custom text:** the input and Save text button appear only in text mode. Input is remembered when switching modes; press Save text to apply edits. Select NeXtep Icon to return to the default.
-- **Looping text:** off by default. When enabled, both short and long text scroll continuously; when disabled, text is centered and overflow is ellipsized. Scrolling pauses while the workspace is hidden.
-- **Font and size:** search, preview, and select system fonts in the custom-text settings, or use a generic font family. System default follows the device's font setting. Sizes range from 10 to 28 sp (default 16 sp), with bold styling and an input preview.
-- **Frosted background:** adjust the slider from 0 to 100; release it to save and apply. The default is 50. Blur affects the control and slot backgrounds, leaving app content sharp.
-- **App strip:** use automatic recent-use ordering or select and reorder shortcuts manually.
-
-## Project status
-
-The current source version is **1.2.2** (`versionCode = 10`), focusing on video-window sizing, app-strip configuration caching, external workspace control, and internationalization. Partial device testing has been performed on **OnePlus PLK110 running Android 17 / ColorOS 17**, without covering every app or edge case; other devices and ROMs still require separate adaptation.
-
-Updates are downloaded through the browser and are not installed automatically. No compatibility promise is made for untested releases or devices. Local recordings, extracted OEM packages, logs, and device dumps used during development are intentionally excluded from the repository.
+Local recordings, extracted OEM packages, logs, and device dumps used during development are intentionally excluded from the repository.
 
 ## License and attribution
 

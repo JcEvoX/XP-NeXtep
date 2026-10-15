@@ -24,12 +24,16 @@ diagnostics/
 artifacts/
 IconDesign/
 graphify-out/
+.codegraph/
 .memorax-code/
 
-# Keep the public build guide; leave other project notes local
+# Keep public documentation and diagram sources; leave other notes local
 docs/*.md
 !docs/BUILDING.md
-docs/architecture/
+!docs/ARCHITECTURE.md
+docs/architecture/*
+!docs/architecture/nextep-architecture.json
+!docs/architecture/nextep-architecture.html
 design-qa.md
 Tech_Spec.md
 
