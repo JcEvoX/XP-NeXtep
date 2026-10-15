@@ -60,9 +60,38 @@ object SettingsScreen {
                 ViewCompat.setAccessibilityHeading(this, true)
             }, matchWidth().apply { bottomMargin = dp(activity, 20) })
 
+            val languageLabels = intArrayOf(
+                R.string.language_system, R.string.language_hans, R.string.language_hant,
+                R.string.language_english, R.string.language_japanese, R.string.language_korean,
+            ).map { activity.getString(it) }.toTypedArray()
+            val selectedLanguage = AppLanguage.selectedTag(activity)
+            val languageButton = MaterialButton(activity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = languageLabels[AppLanguage.languageTags.indexOf(selectedLanguage).coerceAtLeast(0)]
+                contentDescription = activity.getString(R.string.setting_description,
+                    activity.getString(R.string.language_title), text)
+                minWidth = dp(activity, 72)
+                minHeight = dp(activity, 48)
+                maxWidth = dp(activity, 144)
+                maxLines = 2
+                insetTop = dp(activity, 4)
+                insetBottom = dp(activity, 4)
+                cornerRadius = dp(activity, 12)
+                setOnClickListener {
+                    com.google.android.material.dialog.MaterialAlertDialogBuilder(activity)
+                        .setTitle(R.string.language_title)
+                        .setSingleChoiceItems(languageLabels, AppLanguage.languageTags.indexOf(selectedLanguage)) { dialog, index ->
+                            dialog.dismiss()
+                            val tag = AppLanguage.languageTags[index]
+                            if (tag != selectedLanguage) AppLanguage.select(activity, tag)
+                        }
+                        .setNegativeButton(R.string.action_cancel, null)
+                        .show()
+                }
+            }
+
             val addTileButton = MaterialButton(activity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                text = "添加"
-                contentDescription = "添加 NeXtep 到控制中心"
+                text = activity.getString(R.string.action_add)
+                contentDescription = activity.getString(R.string.tile_add_description)
                 minWidth = dp(activity, 72)
                 minHeight = dp(activity, 48)
                 insetTop = dp(activity, 4)
@@ -80,16 +109,16 @@ object SettingsScreen {
                             ) { result ->
                                 isEnabled = true
                                 val message = when (result) {
-                                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> "已添加到控制中心"
-                                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> "控制中心已存在 NeXtep 入口"
-                                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> "未添加，可稍后重试"
-                                    else -> "暂时无法添加，请在控制中心编辑页面重试"
+                                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> activity.getString(R.string.tile_added)
+                                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> activity.getString(R.string.tile_already_added)
+                                    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> activity.getString(R.string.tile_not_added)
+                                    else -> activity.getString(R.string.tile_add_unavailable)
                                 }
                                 Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
                             }
                     }.onFailure {
                         isEnabled = true
-                        Toast.makeText(activity, "请在控制中心编辑页面添加 NeXtep", Toast.LENGTH_LONG).show()
+                        Toast.makeText(activity, activity.getString(R.string.tile_add_manually), Toast.LENGTH_LONG).show()
                     }
                 }
             }
@@ -97,36 +126,43 @@ object SettingsScreen {
             addView(sectionCard(activity).apply {
                 addView(LinearLayout(activity).apply {
                     orientation = LinearLayout.VERTICAL
-                    addView(settingRow(activity, "控制中心入口", "添加 NeXtep 快捷开关", addTileButton), matchWidth())
+                    addView(settingRow(activity, activity.getString(R.string.tile_entry_title), activity.getString(R.string.tile_entry_summary), addTileButton), matchWidth())
+                    addView(settingDivider(activity))
+                    addView(settingRow(activity, activity.getString(R.string.language_title),
+                        activity.getString(R.string.language_summary), languageButton).apply {
+                        setOnClickListener { languageButton.performClick() }
+                        isFocusable = false
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    }, matchWidth())
                     addView(settingDivider(activity))
                     addView(settingSwitchRow(
                         activity,
-                        "状态栏触发手势",
-                        "从右侧向左滑动，打开或关闭工作区。",
+                        activity.getString(R.string.gesture_title),
+                        activity.getString(R.string.gesture_summary),
                         settings.statusBarGestureEnabled,
                         repository::setStatusBarGestureEnabled,
                     ), matchWidth())
                     addView(settingDivider(activity))
                     addView(settingSwitchRow(
                         activity,
-                        "小窗 App 横滑退到后台",
-                        "左侧小窗向左滑，右侧小窗向右滑。",
+                        activity.getString(R.string.background_swipe_title),
+                        activity.getString(R.string.background_swipe_summary),
                         settings.slotBackgroundSwipeEnabled,
                         repository::setSlotBackgroundSwipeEnabled,
                     ), matchWidth())
                     addView(settingDivider(activity))
                     addView(settingSwitchRow(
                         activity,
-                        "顶栏切换时缩小原应用",
-                        "原应用移入空小窗，没有空位时正常切换。",
+                        activity.getString(R.string.auto_minimize_title),
+                        activity.getString(R.string.auto_minimize_summary),
                         settings.autoMinimizeMainOnTopAppSwitch,
                         repository::setAutoMinimizeMainOnTopAppSwitch,
                     ), matchWidth())
                     addView(settingDivider(activity))
                     addView(settingSwitchRow(
                         activity,
-                        "虚拟按键适配",
-                        "使用三键导航时开启，手势导航请关闭。更改系统导航方式后，重新开关一次。",
+                        activity.getString(R.string.navigation_buttons_title),
+                        activity.getString(R.string.navigation_buttons_summary),
                         settings.navigationButtonsEnabled,
                         repository::setNavigationButtonsEnabled,
                     ), matchWidth())
@@ -135,19 +171,19 @@ object SettingsScreen {
 
             val frostSection = sectionCard(activity).apply {
                 addView(sectionContent(activity).apply {
-                    addView(sectionTitle(activity, "磨砂玻璃"), matchWidth())
-                    addView(sectionDescription(activity, "调整控制区域和小窗背景的磨砂强度。"), matchWidth())
+                    addView(sectionTitle(activity, activity.getString(R.string.frost_title)), matchWidth())
+                    addView(sectionDescription(activity, activity.getString(R.string.frost_summary)), matchWidth())
                     var trackingStrength = false
-                    val strengthLabel = sectionDescription(activity, "磨砂强度：${settings.frostStrength}")
+                    val strengthLabel = sectionDescription(activity, activity.getString(R.string.frost_strength_value, settings.frostStrength))
                     addView(strengthLabel, matchWidth())
                     addView(com.google.android.material.slider.Slider(activity).apply {
                         valueFrom = 0f
                         valueTo = 100f
                         stepSize = 1f
                         value = settings.frostStrength.toFloat()
-                        contentDescription = "磨砂强度"
+                        contentDescription = activity.getString(R.string.frost_strength)
                         addOnChangeListener { _, value, fromUser ->
-                            strengthLabel.text = "磨砂强度：${value.toInt()}"
+                            strengthLabel.text = activity.getString(R.string.frost_strength_value, value.toInt())
                             if (fromUser && !trackingStrength) repository.setFrostStrength(value.toInt())
                         }
                         addOnSliderTouchListener(object : com.google.android.material.slider.Slider.OnSliderTouchListener {
@@ -179,16 +215,16 @@ object SettingsScreen {
             }
             val customEditor = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
             val secondsSwitch = SwitchMaterial(activity).apply {
-                text = "显示秒"
+                text = activity.getString(R.string.show_seconds)
                 isChecked = settings.showSeconds
                 setOnCheckedChangeListener { _, checked -> repository.setTopShowSeconds(checked) }
             }
             val contentChoices = listOf(
-                TopContentMode.ICON to "图标",
-                TopContentMode.TIME to "时间",
-                TopContentMode.DATE to "日期＋星期",
-                TopContentMode.EMPTY to "留空",
-                TopContentMode.TEXT to "自定义文本",
+                TopContentMode.ICON to activity.getString(R.string.content_icon),
+                TopContentMode.TIME to activity.getString(R.string.content_time),
+                TopContentMode.DATE to activity.getString(R.string.content_date),
+                TopContentMode.EMPTY to activity.getString(R.string.content_empty),
+                TopContentMode.TEXT to activity.getString(R.string.content_custom),
             ).associate { (mode, label) ->
                 mode to com.google.android.material.chip.Chip(activity).apply {
                     id = View.generateViewId()
@@ -216,7 +252,7 @@ object SettingsScreen {
                 }
             }
             customEditor.addView(TextInputLayout(activity).apply {
-                hint = "自定义文本"
+                hint = activity.getString(R.string.content_custom)
                 boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
                 val radius = dp(activity, 12).toFloat()
                 setBoxCornerRadii(radius, radius, radius, radius)
@@ -224,7 +260,7 @@ object SettingsScreen {
                 addView(titleInput, matchWidth())
             }, matchWidth().apply { topMargin = dp(activity, 8) })
             customEditor.addView(MaterialButton(activity).apply {
-                text = "保存文本"
+                text = activity.getString(R.string.save_text)
                 cornerRadius = dp(activity, 12)
                 setBackgroundColor(SettingsPalette.primary(activity))
                 setTextColor(com.google.android.material.color.MaterialColors.getColor(activity, com.google.android.material.R.attr.colorOnPrimary, Color.WHITE))
@@ -235,15 +271,15 @@ object SettingsScreen {
                     titleInput.clearFocus()
                     activity.getSystemService(InputMethodManager::class.java)
                         ?.hideSoftInputFromWindow(titleInput.windowToken, 0)
-                    Toast.makeText(activity, if (value.isBlank()) "已恢复默认图标" else "自定义文本已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(activity, if (value.isBlank()) activity.getString(R.string.default_icon_restored) else activity.getString(R.string.custom_text_saved), Toast.LENGTH_SHORT).show()
                 }
             }, matchWidth().apply { topMargin = dp(activity, 10) })
             customEditor.addView(SwitchMaterial(activity).apply {
-                text = "循环滚动文字"
+                text = activity.getString(R.string.scroll_text)
                 isChecked = settings.textScroll
                 setOnCheckedChangeListener { _, checked -> repository.setTopTextScroll(checked) }
             }, matchWidth())
-            customEditor.addView(sectionDescription(activity, "开启后，短文本和长文本都会循环滚动；关闭后居中显示，超长部分用省略号。"), matchWidth())
+            customEditor.addView(sectionDescription(activity, activity.getString(R.string.scroll_text_summary)), matchWidth())
             var fontFamily = settings.textFontFamily
             var fontBold = settings.textBold
             var fontSize = settings.textSizeSp
@@ -252,20 +288,20 @@ object SettingsScreen {
                 titleInput.textSize = fontSize.toFloat()
             }
             val fontButton = MaterialButton(activity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                fun selectedLabel() = TopTextStyle.familyLabel(fontFamily)
-                text = "字体：${selectedLabel()}"
+                fun selectedLabel() = TopTextStyle.familyLabel(activity, fontFamily)
+                text = activity.getString(R.string.font_value, selectedLabel())
                 setOnClickListener {
                     SystemFontPicker.show(activity, fontFamily, titleInput.text?.toString().orEmpty()) { family ->
                         fontFamily = family
                         repository.setTopTextFontFamily(fontFamily)
-                        text = "字体：${selectedLabel()}"
+                        text = activity.getString(R.string.font_value, selectedLabel())
                         updateEditorFont()
                     }
                 }
             }
             customEditor.addView(fontButton, matchWidth())
             customEditor.addView(SwitchMaterial(activity).apply {
-                text = "粗体"
+                text = activity.getString(R.string.font_bold)
                 isChecked = fontBold
                 setOnCheckedChangeListener { _, checked ->
                     fontBold = checked
@@ -273,7 +309,7 @@ object SettingsScreen {
                     updateEditorFont()
                 }
             }, matchWidth())
-            val sizeLabel = sectionDescription(activity, "字号：$fontSize sp")
+            val sizeLabel = sectionDescription(activity, activity.getString(R.string.font_size_value, fontSize))
             customEditor.addView(sizeLabel, matchWidth())
             var trackingTextSize = false
             customEditor.addView(com.google.android.material.slider.Slider(activity).apply {
@@ -281,11 +317,11 @@ object SettingsScreen {
                 valueTo = TopTextStyle.MAX_SIZE_SP.toFloat()
                 stepSize = 1f
                 value = fontSize.toFloat()
-                contentDescription = "顶部文字字号"
+                contentDescription = activity.getString(R.string.top_text_size)
                 addOnChangeListener { _, value, fromUser ->
                     if (fromUser) {
                         fontSize = value.toInt()
-                        sizeLabel.text = "字号：$fontSize sp"
+                        sizeLabel.text = activity.getString(R.string.font_size_value, fontSize)
                         updateEditorFont()
                         if (!trackingTextSize) repository.setTopTextSize(fontSize)
                     }
@@ -304,8 +340,8 @@ object SettingsScreen {
             selectContent(settings.contentMode)
             addView(sectionCard(activity).apply {
                 addView(sectionContent(activity).apply {
-                    addView(sectionTitle(activity, "顶部内容"), matchWidth())
-                    addView(sectionDescription(activity, "选项即时生效；自定义文本编辑后需点击保存文本。"), matchWidth())
+                    addView(sectionTitle(activity, activity.getString(R.string.top_content_title)), matchWidth())
+                    addView(sectionDescription(activity, activity.getString(R.string.top_content_summary)), matchWidth())
                     addView(com.google.android.material.chip.ChipGroup(activity).apply {
                         isSingleSelection = true
                         isSelectionRequired = true
@@ -328,8 +364,8 @@ object SettingsScreen {
             val manualContainer = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
             }
-            val automaticButton = modeButton(activity, "自动排序")
-            val manualButton = modeButton(activity, "手动排序")
+            val automaticButton = modeButton(activity, activity.getString(R.string.sort_automatic))
+            val manualButton = modeButton(activity, activity.getString(R.string.sort_manual))
             val modeSelector = MaterialButtonToggleGroup(activity).apply {
                 isSingleSelection = true
                 isSelectionRequired = true
@@ -343,13 +379,13 @@ object SettingsScreen {
             render = {
                 manualContainer.visibility = if (manualMode) View.VISIBLE else View.GONE
                 modeDescription.text = if (manualMode) {
-                    "开启 App，并长按已选项目调整顺序。"
+                    activity.getString(R.string.sort_manual_summary)
                 } else {
-                    "根据最近使用情况自动排列。"
+                    activity.getString(R.string.sort_automatic_summary)
                 }
                 selectedContainer.removeAllViews()
                 if (selected.isEmpty()) {
-                    selectedContainer.addView(emptyHint(activity, "开启下方 App 开关后，会按顺序加入这里"))
+                    selectedContainer.addView(emptyHint(activity, activity.getString(R.string.selected_apps_empty)))
                 } else {
                     selected.forEachIndexed { index, name ->
                         val option = appByName[name] ?: return@forEachIndexed
@@ -368,11 +404,11 @@ object SettingsScreen {
                         addView(SwitchMaterial(activity).apply {
                             text = ""
                             isChecked = selected.contains(componentName)
-                            contentDescription = if (isChecked) "移除 ${option.label}" else "添加 ${option.label}"
+                            contentDescription = if (isChecked) activity.getString(R.string.app_remove, option.label) else activity.getString(R.string.app_add, option.label)
                             setOnCheckedChangeListener { _, enabled ->
                                 if (enabled && selected.size >= MAX_TOP_APPS) {
                                     isChecked = false
-                                    Toast.makeText(activity, "最多选择 $MAX_TOP_APPS 个 App", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(activity, activity.getString(R.string.apps_limit, MAX_TOP_APPS), Toast.LENGTH_SHORT).show()
                                     return@setOnCheckedChangeListener
                                 }
                                 if (enabled) selected += componentName else selected.remove(componentName)
@@ -387,14 +423,14 @@ object SettingsScreen {
 
             addView(sectionCard(activity).apply {
                 addView(sectionContent(activity).apply {
-                    addView(sectionTitle(activity, "App 栏"), matchWidth())
-                    addView(sectionDescription(activity, "自动模式按最近使用排序；手动模式可选择并拖动调整顺序。"), matchWidth())
+                    addView(sectionTitle(activity, activity.getString(R.string.app_strip_title)), matchWidth())
+                    addView(sectionDescription(activity, activity.getString(R.string.app_strip_summary)), matchWidth())
                     addView(modeSelector, matchWidth().apply { topMargin = dp(activity, 14) })
                     addView(modeDescription, matchWidth().apply { topMargin = dp(activity, 8) })
                     addView(manualContainer.apply {
-                        addView(subsectionTitle(activity, "已选 App"), matchWidth())
+                        addView(subsectionTitle(activity, activity.getString(R.string.selected_apps)), matchWidth())
                         addView(selectedContainer, matchWidth())
-                        addView(subsectionTitle(activity, "全部 App"), matchWidth().apply {
+                        addView(subsectionTitle(activity, activity.getString(R.string.all_apps)), matchWidth().apply {
                             topMargin = dp(activity, 16)
                         })
                         addView(availableContainer, matchWidth())
@@ -432,7 +468,7 @@ object SettingsScreen {
         repository: SettingsRepository,
         render: () -> Unit,
     ): View = appRow(activity, option, 38).apply {
-        contentDescription = "${option.label}，长按拖动排序"
+        contentDescription = activity.getString(R.string.app_drag_description, option.label)
         background = roundedBackground(SettingsPalette.container(activity), dp(activity, 12).toFloat())
         setPadding(dp(activity, 10), dp(activity, 5), dp(activity, 8), dp(activity, 5))
         val params = LinearLayout.LayoutParams(
@@ -470,7 +506,7 @@ object SettingsScreen {
         addView(ImageView(activity).apply {
             setImageResource(io.github.lujinxin.nextep.R.drawable.ic_drag_handle)
             scaleType = ImageView.ScaleType.CENTER
-            contentDescription = "拖动调整 ${option.label} 的位置"
+            contentDescription = activity.getString(R.string.app_drag_position, option.label)
         }, LinearLayout.LayoutParams(dp(activity, 44), dp(activity, 48)))
     }
 
@@ -546,7 +582,7 @@ object SettingsScreen {
         onCheckedChange: (Boolean) -> Unit,
     ): View {
         val toggle = SwitchMaterial(activity).apply {
-            contentDescription = "$title。$summary"
+            contentDescription = activity.getString(R.string.setting_description, title, summary)
             minimumWidth = dp(activity, 72)
             minimumHeight = dp(activity, 48)
             isChecked = checked

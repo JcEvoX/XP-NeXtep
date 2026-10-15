@@ -10,12 +10,13 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
+import io.github.lujinxin.nextep.config.AppLanguage
 import io.github.lujinxin.nextep.framework.TaskInfoCompat
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.trigger.TriggerBroadcastContract
-import io.github.lujinxin.nextep.workspace.SystemServerWorkspaceBridge
-import io.github.lujinxin.nextep.workspace.RecentTaskSelectionContract
 import io.github.lujinxin.nextep.workspace.RecentTaskSelection
+import io.github.lujinxin.nextep.workspace.RecentTaskSelectionContract
+import io.github.lujinxin.nextep.workspace.SystemServerWorkspaceBridge
 import java.util.concurrent.atomic.AtomicBoolean
 
 object LauncherRuntime {
@@ -179,6 +180,7 @@ object LauncherRuntime {
                     RecentTaskSelectionContract.EXTRA_IDENTITY, PendingIntent::class.java,
                 )
                 if (identity?.creatorPackage != TriggerBroadcastContract.SYSTEM_UI_PACKAGE) return
+                AppLanguage.updateHostLanguage(intent.getStringExtra(RecentTaskSelectionContract.EXTRA_LANGUAGE_TAG).orEmpty())
                 val extras = Bundle()
                 resultCode = when (val selection = LauncherRecentTaskSelection.selection()) {
                     RecentTaskSelection.NotVisible -> RecentTaskSelectionContract.RESULT_NOT_VISIBLE

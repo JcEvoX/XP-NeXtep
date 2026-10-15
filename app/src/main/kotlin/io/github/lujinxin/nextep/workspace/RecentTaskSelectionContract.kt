@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
+import io.github.lujinxin.nextep.R
+import io.github.lujinxin.nextep.config.AppLanguage
 import io.github.lujinxin.nextep.trigger.TriggerBroadcastContract
 
 data class SelectedRecentTask(val taskId: Int, val userId: Int, val component: ComponentName)
@@ -24,6 +26,7 @@ object RecentTaskSelectionContract {
     const val EXTRA_USER_ID = "user_id"
     const val EXTRA_COMPONENT = "component"
     const val EXTRA_ERROR = "error"
+    const val EXTRA_LANGUAGE_TAG = "language_tag"
     const val RESULT_NOT_VISIBLE = 35_101
     const val RESULT_SELECTED = 35_102
     const val RESULT_UNAVAILABLE = 35_103
@@ -34,7 +37,7 @@ object RecentTaskSelectionContract {
         val timeout = Runnable {
             if (!complete) {
                 complete = true
-                callback(RecentTaskSelection.Unavailable("后台卡片暂时无法读取，请稍后重试"))
+                callback(RecentTaskSelection.Unavailable(AppLanguage.string(context, R.string.recent_timeout)))
             }
         }
         fun finish(selection: RecentTaskSelection) {
@@ -45,7 +48,7 @@ object RecentTaskSelectionContract {
         }
         val home = TriggerBroadcastContract.resolveHomePackage(context)
         if (home == null) {
-            finish(RecentTaskSelection.Unavailable("无法识别系统桌面"))
+            finish(RecentTaskSelection.Unavailable(AppLanguage.string(context, R.string.recent_home_unknown)))
             return
         }
         val identity = PendingIntent.getBroadcast(
@@ -56,10 +59,11 @@ object RecentTaskSelectionContract {
         handler.postDelayed(timeout, 800L)
         runCatching {
             context.sendOrderedBroadcast(
-                Intent(ACTION_QUERY).setPackage(home).putExtra(EXTRA_IDENTITY, identity),
+                Intent(ACTION_QUERY).setPackage(home).putExtra(EXTRA_IDENTITY, identity)
+                    .putExtra(EXTRA_LANGUAGE_TAG, AppLanguage.hostTag()),
                 null,
                 object : BroadcastReceiver() {
-                    override fun onReceive(context: Context?, intent: Intent?) {
+                    override fun onReceive(receiverContext: Context?, intent: Intent?) {
                         val extras = getResultExtras(false)
                         val selection = when (resultCode) {
                             RESULT_NOT_VISIBLE -> RecentTaskSelection.NotVisible
@@ -70,10 +74,10 @@ object RecentTaskSelectionContract {
                                     ?.let(ComponentName::unflattenFromString)
                                 if (taskId >= 0 && userId >= 0 && component != null) {
                                     RecentTaskSelection.Selected(SelectedRecentTask(taskId, userId, component))
-                                } else RecentTaskSelection.Unavailable("当前后台卡片无法加入小窗")
+                                } else RecentTaskSelection.Unavailable(AppLanguage.string(context, R.string.recent_card_unavailable))
                             }
                             else -> RecentTaskSelection.Unavailable(
-                                extras?.getString(EXTRA_ERROR) ?: "此桌面暂不支持读取后台卡片",
+                                extras?.getString(EXTRA_ERROR) ?: AppLanguage.string(context, R.string.recent_launcher_unsupported),
                             )
                         }
                         finish(selection)
@@ -81,6 +85,6 @@ object RecentTaskSelectionContract {
                 },
                 handler, 0, null, null,
             )
-        }.onFailure { finish(RecentTaskSelection.Unavailable("后台卡片查询失败")) }
+        }.onFailure { finish(RecentTaskSelection.Unavailable(AppLanguage.string(context, R.string.recent_query_failed))) }
     }
 }

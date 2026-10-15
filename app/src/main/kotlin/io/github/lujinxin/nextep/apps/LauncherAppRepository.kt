@@ -10,6 +10,8 @@ import android.graphics.drawable.Drawable
 import android.os.Process
 import android.os.UserHandle
 import android.os.UserManager
+import io.github.lujinxin.nextep.R
+import io.github.lujinxin.nextep.config.AppLanguage
 import io.github.lujinxin.nextep.trigger.TriggerBroadcastContract
 
 /** Shared by SystemUI's app strip and the module's manual-order catalogue. */
@@ -44,7 +46,7 @@ class LauncherAppRepository(private val context: Context) {
         val multiApp = MultiAppAccess.create()
         val clones = multiApp?.createdPackages().orEmpty()
         val cloneLabels = clones.keys.sorted().mapIndexed { index, userId ->
-            userId to if (clones.size == 1) "分身" else "分身 ${index + 1}"
+            userId to if (clones.size == 1) AppLanguage.string(context, R.string.app_clone) else AppLanguage.string(context, R.string.app_clone_number, index + 1)
         }.toMap()
         val launcherApps = context.getSystemService(LauncherApps::class.java)
         // Standard profiles are queried independently: one inaccessible profile
@@ -133,8 +135,8 @@ class LauncherAppRepository(private val context: Context) {
     private fun displayLabel(label: String, userId: Int, isClone: Boolean,
         alias: String?, cloneLabel: String?): String = when {
         userId == currentUserId -> label
-        isClone -> "${alias?.takeIf(String::isNotBlank) ?: label}（${cloneLabel ?: "分身"}）"
-        else -> "$label（用户 $userId）"
+        isClone -> AppLanguage.string(context, R.string.app_clone_label, alias?.takeIf(String::isNotBlank) ?: label, cloneLabel ?: AppLanguage.string(context, R.string.app_clone))
+        else -> AppLanguage.string(context, R.string.app_user_label, label, userId)
     }
 
     // Start with an unbadged icon and let the system apply the target user's

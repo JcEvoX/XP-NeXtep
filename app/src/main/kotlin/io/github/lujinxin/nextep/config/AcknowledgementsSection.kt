@@ -20,13 +20,13 @@ internal object AcknowledgementsSection {
             orientation = LinearLayout.VERTICAL
             setPadding(0, dp(8), 0, dp(16))
             addView(TextView(activity).apply {
-                text = "致谢"
+                text = activity.getString(R.string.acknowledgements_title)
                 textSize = 18f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(SettingsPalette.text(activity))
             })
             addView(TextView(activity).apply {
-                text = "感谢为 NeXtep 提出建议、帮助测试的朋友。"
+                text = activity.getString(R.string.acknowledgements_summary)
                 textSize = 14f
                 setTextColor(SettingsPalette.secondary(activity))
                 setPadding(0, dp(8), 0, dp(8))

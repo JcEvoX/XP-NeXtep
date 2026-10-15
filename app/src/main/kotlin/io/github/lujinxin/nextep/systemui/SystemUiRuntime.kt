@@ -14,19 +14,20 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.view.Display
 import io.github.lujinxin.nextep.apps.LauncherAppCatalogContract
+import io.github.lujinxin.nextep.config.AppLanguage
 import io.github.lujinxin.nextep.config.WorkspaceConfigClient
 import io.github.lujinxin.nextep.config.WorkspaceConfigContract
 import io.github.lujinxin.nextep.config.WorkspaceTopConfig
+import io.github.lujinxin.nextep.framework.TaskSurfaceCompat
 import io.github.lujinxin.nextep.logging.NeXtepLog
+import io.github.lujinxin.nextep.task.MainTaskPresentationCoordinator
 import io.github.lujinxin.nextep.trigger.TriggerBroadcastContract
+import io.github.lujinxin.nextep.workspace.SidebarSide
+import io.github.lujinxin.nextep.workspace.SystemServerWorkspaceBridge
 import io.github.lujinxin.nextep.workspace.WorkspaceController
 import io.github.lujinxin.nextep.workspace.WorkspaceStateBridge
-import io.github.lujinxin.nextep.workspace.SystemServerWorkspaceBridge
-import io.github.lujinxin.nextep.task.MainTaskPresentationCoordinator
-import io.github.lujinxin.nextep.framework.TaskSurfaceCompat
-import io.github.lujinxin.nextep.workspace.SidebarSide
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 object SystemUiRuntime {
     private val initialized = AtomicBoolean(false)
@@ -57,6 +58,7 @@ object SystemUiRuntime {
                 return@execute
             }
             workspaceConfig = queriedConfig
+            AppLanguage.updateHostLanguage(queriedConfig.languageTag)
             workspaceConfigReady = true
             lifecycleHandler.post {
                 if (::windowController.isInitialized) {

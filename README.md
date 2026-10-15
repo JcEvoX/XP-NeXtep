@@ -36,6 +36,15 @@ The project primarily targets **OnePlus PLK110**, previously verified on **Andro
 
 [Watch the NeXtep demo on Bilibili](https://www.bilibili.com/video/BV1iKHj6fEtL)
 
+## What's new in 1.2.2
+
+- **Landscape video in slots:** fixes incorrect proportions, shrunken video, and large black borders when moving fullscreen landscape video into a slot, using shared adaptation logic.
+- **Floating-player sizing:** fixes incorrect floating-player dimensions after dragging a slot app to the top control area to move it to the background.
+- **App strip loading and caching:** improves app-list loading and configuration caching to reduce intermittent missing icons in the control area.
+- **Advanced page:** provides Shell commands for external tools to enter or exit workspace mode and query its current state.
+- **Internationalization:** adds Simplified Chinese, Traditional Chinese, English, Japanese, and Korean interfaces.
+- **Other fixes:** fixes other known issues.
+
 ## What's new in 1.2.1
 
 - **Rewritten navigation-button adaptation:** adds a “虚拟按键适配” (Navigation-button adaptation) switch, improving workspace layout and navigation-bar display with three-button navigation.
@@ -103,6 +112,8 @@ The diagram below shows how the regular APK process coordinates with the LSPosed
 - **Moves slot apps to the background** with an outward swipe (right for right-side slots, left for left-side slots) or by dropping them onto the control area, freeing the slot without removing the task.
 - **Adapts the workspace for landscape video playback** while keeping the control strip and three task slots available, preserving sensor rotation, and restoring fullscreen tasks to system-managed bounds when landscape mode ends.
 - **Supports flexible layouts and controls**, including left- and right-side layouts, media controls, opening the playback app from its media card, wallpaper-backed panels, and configurable app shortcuts.
+- **Supports external workspace control**, with commands on the Advanced page for entering, exiting, and querying workspace mode.
+- **Provides five interface languages:** Simplified Chinese, Traditional Chinese, English, Japanese, and Korean.
 - **Remembers eligible slot tasks** across workspace sessions and preserves the workspace during lock/unlock.
 - **Customizes top content and background**, with icon, clock, date, blank and text modes, looping text, system fonts, text size, bold styling, and adjustable wallpaper blur.
 - **Coexists with native floating windows**, keeping them above workspace panels.
@@ -133,10 +144,11 @@ See [docs/BUILDING.md](docs/BUILDING.md) for the required toolchain and build co
 
 ## Usage
 
-After enabling the module and rebooting, unlock the device. You can open or close the workspace in either of two ways:
+After enabling the module and rebooting, unlock the device. You can open or close the workspace in the following ways:
 
 - **Gesture:** swipe horizontally to the left from the top-right status-bar area; this gesture can be disabled in Settings. Swiping down opens the system notification shade or Control Center as usual.
 - **Control Center toggle:** open NeXtep's Settings page, tap **添加** (Add) in the **控制中心入口** (Control Center entry) row, and confirm. Then pull down Control Center and tap the **NeXtep** tile to toggle the workspace. If the tile cannot be added from the app, add it from Control Center's edit screen.
+- **External commands:** open the Advanced page and copy the Enter or Exit command into a gesture, shortcut, automation, or terminal tool. Run it with Root privileges while the phone is unlocked. A command for querying the current state is also available.
 
 With the workspace open, manage tasks as follows:
 
@@ -150,7 +162,7 @@ With the workspace open, manage tasks as follows:
 
 ## Settings
 
-- **Settings / About:** switch pages using bottom navigation; configure workspace appearance and app ordering in Settings, and find version information, updates, releases, source code, and acknowledgements in About.
+- **Settings / Advanced / About:** switch pages using bottom navigation; configure workspace appearance and app ordering in Settings, copy external-control commands in Advanced, and find version information, updates, releases, source code, and acknowledgements in About.
 - **Status-bar gesture:** enabled by default and can be disabled independently. The Control Center tile remains available.
 - **Swipe slot apps to the background:** enabled by default and takes effect when changed. Disable it to keep slot apps from being parked by outward swipes; dragging to the control area remains available.
 - **Park the previous main app when switching:** disabled by default; when enabled, switching apps from the top strip moves the previous main app into an empty slot, or switches normally if none is available.
@@ -164,7 +176,7 @@ With the workspace open, manage tasks as follows:
 
 ## Project status
 
-The current source version is **1.2.1** (`versionCode = 9`), focusing on navigation-button adaptation, both landscape orientations, keyboard focus handoff, assistant-panel fullscreen recovery, and workspace stability. Partial device testing has been performed on **OnePlus PLK110 running Android 17 / ColorOS 17**, without covering every app or edge case; other devices and ROMs still require separate adaptation.
+The current source version is **1.2.2** (`versionCode = 10`), focusing on video-window sizing, app-strip configuration caching, external workspace control, and internationalization. Partial device testing has been performed on **OnePlus PLK110 running Android 17 / ColorOS 17**, without covering every app or edge case; other devices and ROMs still require separate adaptation.
 
 Updates are downloaded through the browser and are not installed automatically. No compatibility promise is made for untested releases or devices. Local recordings, extracted OEM packages, logs, and device dumps used during development are intentionally excluded from the repository.
 

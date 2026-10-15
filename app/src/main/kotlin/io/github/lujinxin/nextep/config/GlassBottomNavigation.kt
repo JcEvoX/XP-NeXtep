@@ -4,7 +4,6 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Outline
-import android.graphics.Paint
 import android.graphics.RectF
 import android.os.SystemClock
 import android.view.Choreographer
@@ -37,6 +36,7 @@ internal class GlassBottomNavigation(
     private val renderer = LiquidGlassRenderer(context)
     private val items = listOf(
         NavigationTab(context, R.string.navigation_settings, R.drawable.ic_navigation_settings),
+        NavigationTab(context, R.string.navigation_advanced, R.drawable.ic_navigation_advanced),
         NavigationTab(context, R.string.navigation_about, R.drawable.ic_navigation_about),
     )
     private val row = LinearLayout(context).apply {
@@ -393,6 +393,11 @@ private class NavigationTab(context: Context, label: Int, icon: Int) : LinearLay
         setText(label)
         textSize = 11f
         includeFontPadding = false
+        maxLines = 2
+        ellipsize = android.text.TextUtils.TruncateAt.END
+        gravity = Gravity.CENTER
+        val horizontalPadding = (4f * resources.displayMetrics.density).roundToInt()
+        setPadding(horizontalPadding, 0, horizontalPadding, 0)
         typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         setTextColor(SettingsPalette.text(context))
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -400,7 +405,6 @@ private class NavigationTab(context: Context, label: Int, icon: Int) : LinearLay
     private val accentGlyph = AppCompatResources.getDrawable(context, icon)!!.mutate().apply {
         setTint(SettingsPalette.primary(context))
     }
-    private val accentPaint = Paint(title.paint).apply { color = SettingsPalette.primary(context) }
 
     init {
         orientation = VERTICAL
@@ -411,7 +415,7 @@ private class NavigationTab(context: Context, label: Int, icon: Int) : LinearLay
         val density = resources.displayMetrics.density
         val iconSize = (22f * density).roundToInt()
         addView(glyph, LayoutParams(iconSize, iconSize))
-        addView(title, LayoutParams(-2, -2).apply { topMargin = density.roundToInt() })
+        addView(title, LayoutParams(-1, -2).apply { topMargin = density.roundToInt() })
     }
 
     override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
@@ -423,7 +427,15 @@ private class NavigationTab(context: Context, label: Int, icon: Int) : LinearLay
     fun drawAccent(canvas: Canvas) {
         accentGlyph.setBounds(glyph.left, glyph.top, glyph.right, glyph.bottom)
         accentGlyph.draw(canvas)
-        canvas.drawText(title.text.toString(), title.left.toFloat(), (title.top + title.baseline).toFloat(), accentPaint)
+        val layout = title.layout ?: return
+        val saved = canvas.save()
+        canvas.translate((title.left + title.compoundPaddingLeft).toFloat(),
+            (title.top + title.compoundPaddingTop).toFloat())
+        val originalColor = title.paint.color
+        title.paint.color = SettingsPalette.primary(context)
+        layout.draw(canvas)
+        title.paint.color = originalColor
+        canvas.restoreToCount(saved)
     }
 }
 

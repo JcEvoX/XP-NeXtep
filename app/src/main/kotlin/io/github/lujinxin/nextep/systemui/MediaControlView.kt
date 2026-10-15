@@ -23,6 +23,8 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.graphics.ColorUtils
+import io.github.lujinxin.nextep.R
+import io.github.lujinxin.nextep.config.AppLanguage
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
@@ -38,9 +40,9 @@ class MediaControlView(
     }
     private val title = mediaText(13f, Color.WHITE)
     private val artist = mediaText(10f, Color.rgb(188, 194, 204))
-    private val previous = controlButton(PlaybackIcon.PREVIOUS, "上一首") { transport { skipToPrevious() } }
-    private val playPause = controlButton(PlaybackIcon.PLAY, "播放") { togglePlayback() }
-    private val next = controlButton(PlaybackIcon.NEXT, "下一首") { transport { skipToNext() } }
+    private val previous = controlButton(PlaybackIcon.PREVIOUS, AppLanguage.string(context, R.string.media_previous)) { transport { skipToPrevious() } }
+    private val playPause = controlButton(PlaybackIcon.PLAY, AppLanguage.string(context, R.string.media_play)) { togglePlayback() }
+    private val next = controlButton(PlaybackIcon.NEXT, AppLanguage.string(context, R.string.media_next)) { transport { skipToNext() } }
     private val cardBackground = GradientDrawable().apply {
         shape = GradientDrawable.RECTANGLE
         cornerRadius = dp(10).toFloat()
@@ -124,6 +126,12 @@ class MediaControlView(
             }
     }
 
+    fun refreshLanguage() {
+        previous.contentDescription = AppLanguage.string(context, R.string.media_previous)
+        next.contentDescription = AppLanguage.string(context, R.string.media_next)
+        render()
+    }
+
     override fun onDetachedFromWindow() {
         stopListening()
         super.onDetachedFromWindow()
@@ -200,14 +208,14 @@ class MediaControlView(
             metadata?.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE),
             metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM),
             appLabel,
-            "未播放",
+            AppLanguage.string(context, R.string.media_not_playing),
         )
         artist.text = firstText(
             metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST),
             metadata?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST),
             metadata?.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE),
             appLabel,
-            "NeXtep 媒体控制",
+            AppLanguage.string(context, R.string.media_control_title),
         )
         val art = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
@@ -232,19 +240,19 @@ class MediaControlView(
                 ) != 0L || state != null,
         )
         playPause.setIcon(if (playing) PlaybackIcon.PAUSE else PlaybackIcon.PLAY)
-        playPause.contentDescription = if (playing) "暂停" else "播放"
+        playPause.contentDescription = if (playing) AppLanguage.string(context, R.string.media_pause) else AppLanguage.string(context, R.string.media_play)
         alpha = 1f
     }
 
     private fun renderNoMedia() {
-        title.text = "未播放"
-        artist.text = "打开音乐应用后显示控制"
+        title.text = AppLanguage.string(context, R.string.media_not_playing)
+        artist.text = AppLanguage.string(context, R.string.media_empty_hint)
         artwork.setImageDrawable(null)
         setControlEnabled(previous, false)
         setControlEnabled(playPause, false)
         setControlEnabled(next, false)
         playPause.setIcon(PlaybackIcon.PLAY)
-        playPause.contentDescription = "播放"
+        playPause.contentDescription = AppLanguage.string(context, R.string.media_play)
         resetArtworkPalette()
         alpha = 1f
     }

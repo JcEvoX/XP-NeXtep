@@ -35,7 +35,7 @@ internal object AboutScreen {
                     source.width * 2 / 3, source.height * 2 / 3)
                 setImageDrawable(android.graphics.drawable.BitmapDrawable(resources, cropped))
                 if (cropped !== source) source.recycle()
-                contentDescription = "NeXtep 图标"
+                contentDescription = activity.getString(R.string.app_icon_description)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 background = android.graphics.drawable.GradientDrawable().apply {
                     shape = android.graphics.drawable.GradientDrawable.OVAL
@@ -45,29 +45,29 @@ internal object AboutScreen {
                 clipToOutline = true
             }, LinearLayout.LayoutParams(dp(88), dp(88)))
             addView(TextView(activity).apply {
-                text = "一步，再进一步。"
+                text = activity.getString(R.string.about_tagline)
                 textSize = 24f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(SettingsPalette.text(activity))
                 setPadding(0, dp(12), 0, 0)
             })
-            addView(paragraph("向 OneStep 致敬，在原生 ColorOS 桌面上延续侧边多任务的体验。"))
+            addView(paragraph(activity.getString(R.string.about_tribute)))
             addView(TextView(activity).apply {
-                text = "一个主窗口，三个小窗"
+                text = activity.getString(R.string.about_windows_title)
                 textSize = 18f
                 typeface = Typeface.DEFAULT_BOLD
                 setTextColor(SettingsPalette.text(activity))
                 setPadding(0, dp(8), 0, 0)
             })
-            addView(paragraph("并排处理不同应用，拖动交换窗口，从后台卡片连续添加应用。把小窗拖到顶部控制区，即可移回后台。顶部还提供媒体控制、常用应用和自定义文字等功能。"))
-            addView(paragraph("本项目通过 LSPosed 接入系统界面，保留手机原有桌面。系统升级后，部分功能可能需要适配。", 13f))
+            addView(paragraph(activity.getString(R.string.about_features)))
+            addView(paragraph(activity.getString(R.string.about_compatibility), 13f))
             addView(View(activity).apply { setBackgroundColor(SettingsPalette.outline(activity)) },
                 LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(12); bottomMargin = dp(12) })
             addView(UpdateSection.create(activity))
             addView(View(activity).apply { setBackgroundColor(SettingsPalette.outline(activity)) },
                 LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(12); bottomMargin = dp(12) })
             addView(AcknowledgementsSection.create(activity))
-            addView(paragraph("开源协议 · Apache License 2.0\n作者 · lujinxin (Jensen Lu)", 12f))
+            addView(paragraph(activity.getString(R.string.about_credits), 12f))
         }
     }
 }

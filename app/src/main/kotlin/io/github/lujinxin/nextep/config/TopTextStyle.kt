@@ -1,10 +1,12 @@
 package io.github.lujinxin.nextep.config
 
+import android.content.Context
 import android.graphics.Typeface
 import android.graphics.fonts.Font
 import android.graphics.fonts.FontFamily
 import android.graphics.fonts.FontStyle
 import android.graphics.fonts.SystemFonts
+import io.github.lujinxin.nextep.R
 import java.io.File
 
 object TopTextStyle {
@@ -13,11 +15,11 @@ object TopTextStyle {
     const val MIN_SIZE_SP = 10
     const val MAX_SIZE_SP = 28
     private val genericFamilies = listOf(
-        DEFAULT_FAMILY to "系统默认",
-        "sans-serif" to "无衬线",
-        "serif" to "衬线",
-        "monospace" to "等宽",
-        "sans-serif-condensed" to "窄体",
+        DEFAULT_FAMILY to R.string.font_default,
+        "sans-serif" to R.string.font_sans,
+        "serif" to R.string.font_serif,
+        "monospace" to R.string.font_monospace,
+        "sans-serif-condensed" to R.string.font_condensed,
     )
     data class SystemFont(val id: String, val label: String, val file: File, val index: Int)
 
@@ -34,26 +36,31 @@ object TopTextStyle {
             .map { file ->
                 val index = if (file.name.contains("CJK") && file.extension == "ttc") 2
                     else available.firstOrNull { it.file == file }?.ttcIndex ?: 0
-                SystemFont("system:${file.absolutePath}#$index", fontLabel(file.nameWithoutExtension), file, index)
-            }.sortedWith(compareBy<SystemFont> { if (it.label.contains("中文") || it.label.contains("OPPO") || it.label.contains("ColorOS")) 0 else 1 }
+                SystemFont("system:${file.absolutePath}#$index", fallbackFontLabel(file.nameWithoutExtension), file, index)
+            }.sortedWith(compareBy<SystemFont> { if (it.file.name.contains("CJK") || it.file.name.contains("OPPO") || it.file.name.contains("OSans") || it.file.name.contains("Oplus")) 0 else 1 }
                 .thenBy { it.label })
     }
-    val families: List<Pair<String, String>> get() = genericFamilies.take(1) +
-        systemFonts.map { it.id to it.label } + genericFamilies.drop(1)
+    fun families(context: Context): List<Pair<String, String>> {
+        val generic = genericFamilies.map { (id, label) -> id to context.getString(label) }
+        return generic.take(1) + systemFonts.map { it.id to fontLabel(context, it.file.nameWithoutExtension) } + generic.drop(1)
+    }
     private val typefaces = java.util.concurrent.ConcurrentHashMap<String, Typeface>()
 
-    private fun fontLabel(name: String): String = when (name) {
-        "NotoSansCJK-Regular" -> "中文黑体 · Noto Sans CJK"
-        "NotoSerifCJK-Regular" -> "中文宋体 · Noto Serif CJK"
-        "OSans-RC-Regular" -> "OPPO Sans · 中文"
-        "OSans-Ext-Regular" -> "OPPO Sans · 扩展"
-        "Oplus-Serif" -> "ColorOS 衬线体"
-        "SysSans-Hans-Regular" -> "系统黑体 · 简体中文"
-        "SysSans-Hant-Regular" -> "系统黑体 · 繁体中文"
-        else -> name.removeSuffix("-Regular").removeSuffix("-VF")
+    private fun fontLabel(context: Context, name: String): String = when (name) {
+        "NotoSansCJK-Regular" -> context.getString(R.string.font_noto_sans_cjk)
+        "NotoSerifCJK-Regular" -> context.getString(R.string.font_noto_serif_cjk)
+        "OSans-RC-Regular" -> context.getString(R.string.font_oppo_chinese)
+        "OSans-Ext-Regular" -> context.getString(R.string.font_oppo_extended)
+        "Oplus-Serif" -> context.getString(R.string.font_coloros_serif)
+        "SysSans-Hans-Regular" -> context.getString(R.string.font_system_hans)
+        "SysSans-Hant-Regular" -> context.getString(R.string.font_system_hant)
+        else -> fallbackFontLabel(name)
     }
 
-    fun familyLabel(value: String): String = families.firstOrNull { it.first == value }?.second ?: "系统默认"
+    private fun fallbackFontLabel(name: String): String = name.removeSuffix("-Regular").removeSuffix("-VF")
+
+    fun familyLabel(context: Context, value: String): String = families(context).firstOrNull { it.first == value }?.second
+        ?: context.getString(R.string.font_default)
 
     fun resolveFamily(value: String?): String {
         // Most config queries use a generic font. Do not scan all OEM font files

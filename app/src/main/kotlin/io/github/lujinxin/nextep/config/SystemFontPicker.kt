@@ -12,15 +12,16 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import io.github.lujinxin.nextep.R
 
 internal object SystemFontPicker {
     fun show(activity: AppCompatActivity, selected: String, sample: String, onSelected: (String) -> Unit) {
         fun dp(value: Int) = (value * activity.resources.displayMetrics.density).toInt()
         var choice = selected
-        val all = TopTextStyle.families
+        val all = TopTextStyle.families(activity)
         var filtered = all
         val preview = TextView(activity).apply {
-            text = sample.ifBlank { "NeXtep" } + " · 中文字体预览"
+            text = activity.getString(R.string.font_preview, sample.ifBlank { activity.getString(R.string.font_preview_sample) })
             textSize = 21f
             setTextColor(SettingsPalette.text(activity))
             typeface = TopTextStyle.typeface(choice, false)
@@ -45,7 +46,7 @@ internal object SystemFontPicker {
                     setPadding(dp(12), dp(8), dp(12), dp(8))
                     setTextColor(if (option.first == choice) SettingsPalette.primary(activity) else SettingsPalette.text(activity))
                     typeface = TopTextStyle.typeface(option.first, false)
-                    contentDescription = "字体：${option.second}"
+                    contentDescription = activity.getString(R.string.font_value, option.second)
                 }
             }
         }
@@ -71,20 +72,20 @@ internal object SystemFontPicker {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), 0, dp(20), 0)
             addView(TextInputLayout(activity).apply {
-                hint = "搜索系统字体"
+                hint = activity.getString(R.string.font_search)
                 boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
                 addView(search)
             })
             addView(preview)
             addView(TextView(activity).apply {
-                text = "来自本机已安装字体。缺少的字符会使用系统备用字体；系统默认会跟随手机的字体设置。"
+                text = activity.getString(R.string.font_source_summary)
                 textSize = 12f
                 setTextColor(SettingsPalette.secondary(activity))
             })
             addView(list, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(240)))
         }
-        MaterialAlertDialogBuilder(activity).setTitle("选择系统字体").setView(content)
-            .setPositiveButton("应用字体") { _, _ -> onSelected(choice) }
-            .setNegativeButton("取消", null).show()
+        MaterialAlertDialogBuilder(activity).setTitle(activity.getString(R.string.font_choose)).setView(content)
+            .setPositiveButton(activity.getString(R.string.font_apply)) { _, _ -> onSelected(choice) }
+            .setNegativeButton(activity.getString(R.string.action_cancel), null).show()
     }
 }

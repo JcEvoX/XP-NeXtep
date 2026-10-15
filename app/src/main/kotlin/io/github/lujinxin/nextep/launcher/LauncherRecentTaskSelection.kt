@@ -2,6 +2,8 @@ package io.github.lujinxin.nextep.launcher
 
 import android.content.ComponentName
 import android.view.View
+import io.github.lujinxin.nextep.R
+import io.github.lujinxin.nextep.config.AppLanguage
 import io.github.lujinxin.nextep.workspace.RecentTaskSelection
 import io.github.lujinxin.nextep.workspace.SelectedRecentTask
 import java.lang.ref.WeakReference
@@ -22,9 +24,9 @@ object LauncherRecentTaskSelection {
         return runCatching {
             if (field(view, "mOverviewStateEnabled") != true) return@runCatching RecentTaskSelection.NotVisible
             val card = call(view, "getTaskViewNearestToCenterOfScreen")
-                ?: return@runCatching RecentTaskSelection.Unavailable("请先将一个后台卡片移到屏幕中间")
+                ?: return@runCatching RecentTaskSelection.Unavailable(AppLanguage.string(view.context, R.string.recent_center_task))
             if (call(card, "containsMultipleTasks") == true) {
-                return@runCatching RecentTaskSelection.Unavailable("请先退出分屏，再将应用加入小窗")
+                return@runCatching RecentTaskSelection.Unavailable(AppLanguage.string(view.context, R.string.recent_exit_split))
             }
             val task = checkNotNull(call(card, "getTask"))
             // ColorOS obfuscates TaskKey's fields (n/p/q in this ROM). The Task
@@ -35,7 +37,7 @@ object LauncherRecentTaskSelection {
                 ?: error("Card has no component")
             check(taskId >= 0 && userId >= 0)
             RecentTaskSelection.Selected(SelectedRecentTask(taskId, userId, component))
-        }.getOrElse { RecentTaskSelection.Unavailable("当前后台卡片暂时无法识别") }
+        }.getOrElse { RecentTaskSelection.Unavailable(AppLanguage.string(view.context, R.string.recent_unrecognized)) }
     }
 
     private fun field(target: Any, name: String): Any? = generateSequence(target.javaClass as Class<*>?) { it.superclass }

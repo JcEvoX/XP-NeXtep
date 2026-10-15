@@ -2,16 +2,12 @@ package io.github.lujinxin.nextep.systemui
 
 import android.content.Context
 import android.content.Intent
-import io.github.lujinxin.nextep.config.TopContentMode
-import io.github.lujinxin.nextep.config.WorkspaceTopConfig
-import android.text.format.DateFormat
-import java.util.Date
-import java.util.Locale
-import android.graphics.Color
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Region
 import android.graphics.drawable.GradientDrawable
+import android.text.format.DateFormat
 import android.view.Gravity
 import android.view.View
 import android.view.ViewOutlineProvider
@@ -20,12 +16,17 @@ import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import io.github.lujinxin.nextep.R
+import io.github.lujinxin.nextep.config.AppLanguage
+import io.github.lujinxin.nextep.config.TopContentMode
 import io.github.lujinxin.nextep.config.WorkspaceConfigClient
+import io.github.lujinxin.nextep.config.WorkspaceTopConfig
 import io.github.lujinxin.nextep.logging.NeXtepLog
+import io.github.lujinxin.nextep.workspace.SidebarButtonLayout
 import io.github.lujinxin.nextep.workspace.SidebarSide
 import io.github.lujinxin.nextep.workspace.WorkspaceControlMetrics
-import io.github.lujinxin.nextep.workspace.SidebarButtonLayout
 import java.lang.reflect.Proxy
+import java.util.Date
 
 class TopAppStripView(
     context: Context,
@@ -95,17 +96,21 @@ class TopAppStripView(
         addView(appRow, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT))
     }
     private val leftButton = SideSelectionButton(context, SidebarSide.LEFT).apply {
-        contentDescription = "小窗靠左"
+        contentDescription = AppLanguage.string(context, R.string.window_side_left)
         setOnClickListener { onSidebarSideRequested(SidebarSide.LEFT) }
     }
     private val rightButton = SideSelectionButton(context, SidebarSide.RIGHT).apply {
-        contentDescription = "小窗靠右"
+        contentDescription = AppLanguage.string(context, R.string.window_side_right)
         setOnClickListener { onSidebarSideRequested(SidebarSide.RIGHT) }
     }
     private var sidebarSide = initialSidebarSide
     private val exitButton = ExitButton(context).apply {
-        contentDescription = "退出小窗模式"
+        contentDescription = AppLanguage.string(context, R.string.window_exit)
         setOnClickListener { onExitRequested() }
+    }
+    private val settingsButton = GearButton(context).apply {
+        contentDescription = AppLanguage.string(context, R.string.open_settings)
+        setOnClickListener { onSettingsRequested() }
     }
     private val dividerPaint = Paint().apply { color = Color.argb(90, 255, 255, 255) }
     private var loading = false
@@ -118,7 +123,7 @@ class TopAppStripView(
     private var internalAppDragActive = false
     private var deferredApps: List<TopAppRepository.AppEntry>? = null
     private val dismissHint = TextView(context).apply {
-        text = "松手移到后台"
+        text = AppLanguage.string(context, R.string.window_drop_background)
         textSize = 18f
         gravity = Gravity.CENTER
         setTextColor(Color.WHITE)
@@ -171,7 +176,8 @@ class TopAppStripView(
     private val configChangedReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             // Read configuration through the explicit module receiver; do not trust broadcast extras.
-            if (intent.action == io.github.lujinxin.nextep.config.WorkspaceConfigContract.ACTION_CHANGED) {
+            if (intent.action == io.github.lujinxin.nextep.config.WorkspaceConfigContract.ACTION_CHANGED ||
+                intent.action == android.content.Intent.ACTION_LOCALE_CHANGED) {
                 refreshRetryCount = 0
                 refresh(force = true)
             }
@@ -190,6 +196,12 @@ class TopAppStripView(
     }
 
     private fun updateTitle() {
+        leftButton.contentDescription = AppLanguage.string(context, R.string.window_side_left)
+        rightButton.contentDescription = AppLanguage.string(context, R.string.window_side_right)
+        exitButton.contentDescription = AppLanguage.string(context, R.string.window_exit)
+        settingsButton.contentDescription = AppLanguage.string(context, R.string.open_settings)
+        dismissHint.text = AppLanguage.string(context, R.string.window_drop_background)
+        mediaControl.refreshLanguage()
         removeCallbacks(titleTick)
         titleTick.run()
     }
@@ -212,14 +224,13 @@ class TopAppStripView(
                 val skeleton = if (DateFormat.is24HourFormat(context)) {
                     if (topConfig.showSeconds) "Hms" else "Hm"
                 } else if (topConfig.showSeconds) "hms" else "hm"
-                DateFormat.format(DateFormat.getBestDateTimePattern(Locale.getDefault(), skeleton), Date())
+                java.text.SimpleDateFormat(
+                    DateFormat.getBestDateTimePattern(AppLanguage.locale(context), skeleton), AppLanguage.locale(context),
+                ).format(Date())
             }
             TopContentMode.DATE -> {
-                val now = Date()
-                val date = DateFormat.format(
-                    DateFormat.getBestDateTimePattern(Locale.getDefault(), "MMMd"), now)
-                val weekday = DateFormat.format("EEE", now)
-                "$date $weekday"
+                val locale = AppLanguage.locale(context)
+                java.text.SimpleDateFormat(DateFormat.getBestDateTimePattern(locale, "MMMEd"), locale).format(Date())
             }
             else -> topConfig.title
         }
@@ -231,7 +242,9 @@ class TopAppStripView(
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
         context.registerReceiver(configChangedReceiver,
-            android.content.IntentFilter(io.github.lujinxin.nextep.config.WorkspaceConfigContract.ACTION_CHANGED),
+            android.content.IntentFilter(io.github.lujinxin.nextep.config.WorkspaceConfigContract.ACTION_CHANGED).apply {
+                addAction(android.content.Intent.ACTION_LOCALE_CHANGED)
+            },
             Context.RECEIVER_EXPORTED)
         updateTitle()
         if (workspaceVisible && appRow.childCount == 0) refresh(force = true)
@@ -291,6 +304,7 @@ class TopAppStripView(
         val generation = ++refreshGeneration
         Thread({
             val config = WorkspaceConfigClient.queryOrNull(context)
+            if (config != null) AppLanguage.updateHostLanguage(config.languageTag)
             val result = config?.let {
                 runCatching {
                     repository.load(
@@ -357,10 +371,7 @@ class TopAppStripView(
             },
         )
         addView(
-            GearButton(context).apply {
-                contentDescription = "打开 NeXtep 设置"
-                setOnClickListener { onSettingsRequested() }
-            },
+            settingsButton,
             LinearLayout.LayoutParams(buttonSize, buttonSize),
         )
         addView(
@@ -375,7 +386,7 @@ class TopAppStripView(
         val scrollX = appScroll.scrollX
         appRow.removeAllViews()
         if (entries.isEmpty()) {
-            appRow.addView(messageView("没有可启动的 App"))
+            appRow.addView(messageView(AppLanguage.string(context, R.string.apps_none_available)))
         } else {
             entries.forEach { entry -> appRow.addView(appTile(entry)) }
         }

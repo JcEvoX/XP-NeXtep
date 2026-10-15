@@ -8,6 +8,7 @@ import android.content.IntentFilter
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import io.github.lujinxin.nextep.config.AppLanguage
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.trigger.TriggerBroadcastContract
 import java.util.concurrent.atomic.AtomicBoolean
@@ -17,6 +18,7 @@ object LauncherAppCatalogContract {
     private const val ACTION_QUERY = "io.github.lujinxin.nextep.action.QUERY_PROFILE_APPS"
     private const val RESULT_CATALOG = 35_201
     private const val EXTRA_APPS = "profile_apps"
+    private const val EXTRA_LANGUAGE_TAG = "language_tag"
     private val registered = AtomicBoolean(false)
 
     fun register(context: Context) {
@@ -29,6 +31,7 @@ object LauncherAppCatalogContract {
                     Thread({
                         try {
                             val repository = LauncherAppRepository(context)
+                            AppLanguage.updateHostLanguage(intent.getStringExtra(EXTRA_LANGUAGE_TAG).orEmpty())
                             val records = repository.load().filter { it.userId != repository.currentUserId }
                                 .map { app -> Bundle().apply {
                                     putString("key", app.key)
@@ -71,6 +74,7 @@ object LauncherAppCatalogContract {
         runCatching {
             context.sendOrderedBroadcast(Intent(ACTION_QUERY)
                 .setPackage(TriggerBroadcastContract.SYSTEM_UI_PACKAGE)
+                .putExtra(EXTRA_LANGUAGE_TAG, AppLanguage.selectedTag(context))
                 .addFlags(Intent.FLAG_RECEIVER_FOREGROUND), null, object : BroadcastReceiver() {
                 override fun onReceive(receiverContext: Context?, intent: Intent?) {
                     if (finished) return

@@ -8,18 +8,20 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.Display
+import io.github.lujinxin.nextep.R
+import io.github.lujinxin.nextep.config.AppLanguage
 import io.github.lujinxin.nextep.framework.ActivityTaskManagerCompat
 import io.github.lujinxin.nextep.framework.TaskSurfaceCompat
-import io.github.lujinxin.nextep.framework.WindowContainerTransactionCompat
 import io.github.lujinxin.nextep.framework.UserTargetedActivityLauncher
+import io.github.lujinxin.nextep.framework.WindowContainerTransactionCompat
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.task.MainTaskPresentationCoordinator
 import io.github.lujinxin.nextep.task.TaskRepository
 import io.github.lujinxin.nextep.trigger.TriggerBroadcastContract
-import io.github.lujinxin.nextep.workspace.WorkspaceGeometry
-import io.github.lujinxin.nextep.workspace.RecentTaskSelectionContract
 import io.github.lujinxin.nextep.workspace.RecentTaskSelection
+import io.github.lujinxin.nextep.workspace.RecentTaskSelectionContract
 import io.github.lujinxin.nextep.workspace.SelectedRecentTask
+import io.github.lujinxin.nextep.workspace.WorkspaceGeometry
 
 class SlotTaskCoordinator(
     context: Context,
@@ -49,6 +51,7 @@ class SlotTaskCoordinator(
         val densityDpi: Int,
         val windowingMode: Int,
         val resizeMode: Int?,
+        val vendorWindowed: Boolean = false,
     )
 
     private val applicationContext = context.applicationContext ?: context
@@ -159,7 +162,7 @@ class SlotTaskCoordinator(
             runCatching {
                 val layout = record.originalLayout ?: defaultMainLayout(task.resizeMode)
                 WindowContainerTransactionCompat.parkInDefaultDisplay(
-                    checkNotNull(task.token), layout.bounds, layout.densityDpi, layout.windowingMode,
+                    checkNotNull(task.token), layout.defaultDisplayBounds(), layout.densityDpi, layout.windowingMode,
                 ).getOrThrow()
                 check(taskRepository.findTask(task.taskId)?.displayId == Display.DEFAULT_DISPLAY) {
                     "Task ${task.taskId} did not return to the default display"
@@ -179,7 +182,7 @@ class SlotTaskCoordinator(
                 .forEach { secondary ->
                     val layout = defaultMainLayout(secondary.resizeMode)
                     WindowContainerTransactionCompat.parkInDefaultDisplay(
-                        checkNotNull(secondary.token), layout.bounds, layout.densityDpi, layout.windowingMode,
+                        checkNotNull(secondary.token), layout.defaultDisplayBounds(), layout.densityDpi, layout.windowingMode,
                     ).getOrThrow()
                 }
         }
@@ -538,7 +541,7 @@ class SlotTaskCoordinator(
             // actual owner before accepting another task into the visible '+' slot.
             reconcile("retry failed slot tap")
             if (slotRecords[slotIndex].state is SlotState.Failed) {
-                showMessage("小窗布局暂未恢复，请稍后重试")
+                showMessage(AppLanguage.string(applicationContext, R.string.window_layout_pending))
                 return
             }
         }
@@ -597,7 +600,7 @@ class SlotTaskCoordinator(
                 is RecentTaskSelection.Selected -> runTransition(
                     "center recent task=${selection.task.taskId} slot=$slotIndex",
                 ) { assignRecentTask(slotIndex, ready, selection.task) }.onFailure {
-                    showMessage("该后台任务暂时无法加入小窗，请重新选择后重试")
+                    showMessage(AppLanguage.string(applicationContext, R.string.recent_add_failed))
                 }
             }
         }
@@ -652,7 +655,7 @@ class SlotTaskCoordinator(
             restored?.let { task ->
                 runCatching {
                     WindowContainerTransactionCompat.parkInDefaultDisplay(
-                        checkNotNull(task.token), original.bounds, original.densityDpi, original.windowingMode,
+                        checkNotNull(task.token), original.defaultDisplayBounds(), original.densityDpi, original.windowingMode,
                     ).getOrThrow()
                     original.resizeMode?.let { mode ->
                         ActivityTaskManagerCompat.setTaskResizeable(task.taskId, mode).getOrThrow()
@@ -701,13 +704,13 @@ class SlotTaskCoordinator(
             val layout = record.originalLayout ?: defaultMainLayout(task.resizeMode)
             try {
                 WindowContainerTransactionCompat.parkInDefaultDisplay(
-                    checkNotNull(task.token), layout.bounds, layout.densityDpi, layout.windowingMode,
+                    checkNotNull(task.token), layout.defaultDisplayBounds(), layout.densityDpi, layout.windowingMode,
                 ).getOrThrow()
                 check(taskRepository.findTask(task.taskId)?.displayId == Display.DEFAULT_DISPLAY)
                 layout.resizeMode?.let { ActivityTaskManagerCompat.setTaskResizeable(task.taskId, it).getOrThrow() }
                 record.exitTask = null
                 updateDraggedSlot(drag.slotIndex, SlotState.Ready(drag.displayId), null)
-                showMessage("已移到后台")
+                showMessage(AppLanguage.string(applicationContext, R.string.window_backgrounded))
             } catch (error: Throwable) {
                 runCatching {
                     moveTaskToDisplayAndWait(task.taskId, drag.displayId)
@@ -1197,7 +1200,7 @@ class SlotTaskCoordinator(
                 operation()
             }.onFailure { error ->
                 NeXtepLog.error("slot_coordinator", "Transition failed $label", error)
-                if (animation != null) showMessage("交换未完成，已尝试恢复原窗口")
+                if (animation != null) showMessage(AppLanguage.string(applicationContext, R.string.window_swap_incomplete))
             }
             // As in 1.1.1, serialize logical moves only. Shell's later animation
             // must not turn the visual reconciliation delay into an input lock.
@@ -1698,7 +1701,15 @@ class SlotTaskCoordinator(
         densityDpi = densityDpi,
         windowingMode = windowingMode,
         resizeMode = resizeMode,
+        vendorWindowed = vendorWindowed,
     )
+
+    private fun TaskLayout.defaultDisplayBounds(): Rect {
+        // Match foreground restoration in the same reparent transaction: fullscreen
+        // inherits the destination's current rotation/size, not a saved landscape Rect.
+        // ColorOS floating tasks can report fullscreen; retain their native bounds.
+        return if (!vendorWindowed && windowingMode == fullscreenWindowingMode()) Rect() else Rect(bounds)
+    }
 
     private fun defaultMainLayout(resizeMode: Int?): TaskLayout {
         val geometry = geometryProvider()

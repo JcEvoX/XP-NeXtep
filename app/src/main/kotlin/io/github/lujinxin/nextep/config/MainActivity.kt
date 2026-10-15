@@ -33,9 +33,13 @@ class MainActivity : AppCompatActivity() {
             isAppearanceLightNavigationBars = !SettingsPalette.isDark(this@MainActivity)
         }
         fun dp(value: Int) = (value * resources.displayMetrics.density).roundToInt()
-        val pages = listOf(SettingsScreen.create(this, SettingsRepository(this)), AboutScreen.create(this))
-            .mapIndexed { index, page -> ScrollView(this).apply {
-                id = if (index == 0) R.id.settings_scroll else R.id.about_scroll
+        val pages = listOf(
+            R.id.settings_scroll to SettingsScreen.create(this, SettingsRepository(this)),
+            R.id.advanced_scroll to AdvancedScreen.create(this),
+            R.id.about_scroll to AboutScreen.create(this),
+        )
+            .map { (pageId, page) -> ScrollView(this).apply {
+                id = pageId
                 isFillViewport = true
                 isVerticalScrollBarEnabled = false
                 clipToPadding = false
@@ -96,7 +100,7 @@ class MainActivity : AppCompatActivity() {
         // Space above/below the 64dp bar lets the pressed 78dp lens grow without being cropped.
         val navigationHeight = dp(76) + (12 * resources.displayMetrics.scaledDensity).roundToInt()
         val navigationParams = FrameLayout.LayoutParams(
-            dp(280), navigationHeight, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
+            dp(360), navigationHeight, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL,
         )
         root.addView(bottomNavigation, navigationParams)
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -108,7 +112,7 @@ class MainActivity : AppCompatActivity() {
                 pageParams.width = pageWidth
                 pager.layoutParams = pageParams
             }
-            val barWidth = minOf((available - dp(48)).coerceAtLeast(0), dp(280))
+            val barWidth = minOf((available - dp(48)).coerceAtLeast(0), dp(360))
             if (navigationParams.width != barWidth) {
                 navigationParams.width = barWidth
                 bottomNavigation.layoutParams = navigationParams

@@ -26,6 +26,7 @@
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
         android:description="@string/module_description"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
@@ -61,6 +62,12 @@
             android:name=".config.WorkspaceConfigReceiver"
             android:exported="true"
             android:permission="android.permission.STATUS_BAR_SERVICE" />
+
+        <receiver android:name=".config.LanguageChangedReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name=".config.WorkspaceConfigProvider"

@@ -110,11 +110,12 @@ class SlotVideoFullscreenExitHooker(private val report: (String) -> Unit) : Xpos
                 it.parameterTypes[1] == Int::class.javaPrimitiveType
         }?.invoke(sessions, null, userId) as? List<*>
             ?: if (userId == 0) sessions.getActiveSessions(null) else return@runCatching false
+        val hasPortraitTarget = synchronized(lock) { hasPortraitReturnTarget(activity) }
         val hasMedia = controllers.filterIsInstance<android.media.session.MediaController>().any {
             it.packageName == packageName && (it.playbackState?.state in setOf(
                 PlaybackState.STATE_PLAYING, PlaybackState.STATE_PAUSED,
                 PlaybackState.STATE_BUFFERING, PlaybackState.STATE_CONNECTING,
-            ) || hasPortraitReturnTarget(activity))
+            ) || hasPortraitTarget)
         }
         if (!hasMedia) {
             return@runCatching true
@@ -193,20 +194,23 @@ class SlotVideoFullscreenExitHooker(private val report: (String) -> Unit) : Xpos
                 attrs.systemUiVisibility and View.SYSTEM_UI_FLAG_FULLSCREEN != 0))
     }
 
-    // Some players open a dedicated landscape Activity for a portrait detail page.
-    // A registered media session may remain STOPPED during playback in that Activity.
+    // Dedicated players may use either startActivityForResult or an ordinary
+    // same-task push. Only the immediate portrait page is a safe return target;
+    // do not search farther down the history or across tasks/packages.
     private fun hasPortraitReturnTarget(activity: Any): Boolean {
-        val target = field(activity, "resultTo") ?: return false
-        if (field(target, "finishing") == true ||
-            field(target, "packageName") != field(activity, "packageName") ||
-            call(target, "getTask") !== call(activity, "getTask")
-        ) return false
-        return (call(target, "getRequestedOrientation") as? Int) in setOf(
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
-            ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT,
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT,
-            ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT,
-        )
+        val task = call(activity, "getTask") ?: return false
+        fun isPortraitTarget(target: Any?): Boolean = target != null &&
+            field(target, "finishing") != true &&
+            field(target, "packageName") == field(activity, "packageName") &&
+            call(target, "getTask") === task &&
+            (call(target, "getRequestedOrientation") as? Int) in setOf(
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT,
+                ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT,
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT,
+                ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT,
+            )
+        if (isPortraitTarget(field(activity, "resultTo"))) return true
+        return isPortraitTarget(call(task, "getActivityBelow", activity))
     }
 
     private fun isLandscape(orientation: Int?): Boolean = orientation in setOf(
@@ -226,9 +230,11 @@ class SlotVideoFullscreenExitHooker(private val report: (String) -> Unit) : Xpos
             .flatMap { it.declaredFields.asSequence() }.firstOrNull { it.name == name }
             ?.apply { isAccessible = true }?.get(target)
 
-    private fun call(target: Any, name: String): Any? =
+    private fun call(target: Any, name: String, vararg args: Any): Any? =
         generateSequence(target.javaClass as Class<*>?) { it.superclass }
             .flatMap { it.declaredMethods.asSequence() }
-            .firstOrNull { it.name == name && it.parameterTypes.isEmpty() }
-            ?.apply { isAccessible = true }?.invoke(target)
+            .firstOrNull { method ->
+                method.name == name && method.parameterTypes.size == args.size &&
+                    method.parameterTypes.indices.all { method.parameterTypes[it].isInstance(args[it]) }
+            }?.apply { isAccessible = true }?.invoke(target, *args)
 }

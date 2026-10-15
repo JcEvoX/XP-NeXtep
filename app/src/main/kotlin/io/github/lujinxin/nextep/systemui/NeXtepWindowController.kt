@@ -1,7 +1,7 @@
 package io.github.lujinxin.nextep.systemui
 
-import android.content.Context
 import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Color
@@ -11,17 +11,19 @@ import android.view.View
 import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
-import io.github.lujinxin.nextep.display.VirtualDisplaySlot
-import io.github.lujinxin.nextep.display.SlotTaskCoordinator
-import io.github.lujinxin.nextep.display.WORKSPACE_SLOT_COUNT
-import io.github.lujinxin.nextep.display.SlotTaskDrag
+import io.github.lujinxin.nextep.R
+import io.github.lujinxin.nextep.config.AppLanguage
 import io.github.lujinxin.nextep.display.SlotState
+import io.github.lujinxin.nextep.display.SlotTaskCoordinator
+import io.github.lujinxin.nextep.display.SlotTaskDrag
+import io.github.lujinxin.nextep.display.VirtualDisplaySlot
+import io.github.lujinxin.nextep.display.WORKSPACE_SLOT_COUNT
 import io.github.lujinxin.nextep.logging.NeXtepLog
 import io.github.lujinxin.nextep.safety.FeatureGate
 import io.github.lujinxin.nextep.task.MainTaskPresentationCoordinator
-import io.github.lujinxin.nextep.workspace.WorkspaceGeometry
 import io.github.lujinxin.nextep.workspace.SidebarSide
 import io.github.lujinxin.nextep.workspace.SystemServerWorkspaceBridge
+import io.github.lujinxin.nextep.workspace.WorkspaceGeometry
 
 class NeXtepWindowController(
     private val context: Context,
@@ -289,7 +291,7 @@ class NeXtepWindowController(
                 onMediaClicked = { session ->
                     slotCoordinator?.openMediaInMain(session)?.onFailure { error ->
                         NeXtepLog.warn("media_control", "Unable to open media app in main", error)
-                        android.widget.Toast.makeText(context, "暂时无法打开播放应用", android.widget.Toast.LENGTH_SHORT).show()
+                        android.widget.Toast.makeText(context, AppLanguage.string(context, R.string.media_open_failed), android.widget.Toast.LENGTH_SHORT).show()
                     }
                 },
                 onSidebarSideRequested = onSidebarSideRequested,
