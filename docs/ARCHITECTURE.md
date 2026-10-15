@@ -1,10 +1,10 @@
 # NeXtep Architecture
 
-NeXtep keeps the stock ColorOS launcher and adds a SystemUI-owned workspace with one main region and three live task slots. This document describes the current implementation rather than a staged development plan.
+NeXtep keeps the stock ColorOS launcher and adds a SystemUI-owned workspace with one main region and three live task slots.
 
 ![NeXtep architecture](../assets/nextep-architecture.png)
 
-The diagram is a process and responsibility overview. Its editable [JSON](architecture/nextep-architecture.json) and standalone [HTML viewer](architecture/nextep-architecture.html) are maintained together with the README image. Source references are pinned to commit `79cc0f02a0621238995facca3c331bc7ed37ab61`; they describe source behavior, not a claim that every path has passed device testing.
+The diagram maps process boundaries and responsibilities. Explore the standalone [HTML viewer](architecture/nextep-architecture.html) or edit the [JSON source](architecture/nextep-architecture.json). Source references point to commit `79cc0f02a0621238995facca3c331bc7ed37ab61`.
 
 ## Process ownership
 

@@ -34,8 +34,6 @@
 
 [下载与更新记录](https://github.com/lujinxin/NeXtep/releases) · [哔哩哔哩演示视频](https://www.bilibili.com/video/BV1iKHj6fEtL)
 
-本 README 介绍当前功能及其使用方法，各版本的新增、优化和修复统一记录在 [GitHub Releases](https://github.com/lujinxin/NeXtep/releases) 中。
-
 [功能](#功能) · [使用要求](#使用要求) · [安装](#安装) · [工作区入口](#打开与关闭工作区) · [外部命令](#外部调用命令) · [行为开关](#行为开关)
 
 ## 功能
@@ -177,18 +175,6 @@ settings get global nextep_workspace_active_v1
   </a>
 </p>
 
-开发过程中使用的本地录屏、提取的厂商应用、日志和设备转储文件均不会包含在仓库中。
-
-## 许可证与署名
-
-NeXtep 使用 [Apache License 2.0](LICENSE) 授权。第三方署名和设计来源请参阅 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
-## 致谢
-
-特别感谢锤子科技 **Smartisan OS OneStep**，为本项目提供了产品理念与交互设计灵感。
-
-Copyright 2026 lujinxin.
-
 ## 反馈交流群
 
 QQ 群：**1128561895**
@@ -196,3 +182,13 @@ QQ 群：**1128561895**
 <p align="center">
   <img src="assets/qq-group-qrcode.jpg" alt="NeXtep QQ 反馈群二维码" width="360">
 </p>
+
+## 致谢
+
+特别感谢锤子科技 **Smartisan OS OneStep**，为本项目提供了产品理念与交互设计灵感。
+
+## 许可证与署名
+
+NeXtep 使用 [Apache License 2.0](LICENSE) 授权。第三方署名和设计来源请参阅 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+Copyright 2026 lujinxin.

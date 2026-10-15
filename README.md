@@ -34,8 +34,6 @@ The project primarily targets **OnePlus PLK110**, previously verified on **Andro
 
 [Download and release notes](https://github.com/lujinxin/NeXtep/releases) · [Demo video on Bilibili](https://www.bilibili.com/video/BV1iKHj6fEtL)
 
-This README describes the current features and how to use them. Version-specific changes and fixes are recorded in [GitHub Releases](https://github.com/lujinxin/NeXtep/releases).
-
 [Features](#features) · [Requirements](#requirements) · [Installation](#installation) · [Workspace controls](#open-and-close-the-workspace) · [External commands](#external-commands) · [Behavior switches](#behavior-switches)
 
 ## Features
@@ -177,18 +175,6 @@ The diagram shows how the regular APK coordinates with the LSPosed-injected Syst
   </a>
 </p>
 
-Local recordings, extracted OEM packages, logs, and device dumps used during development are intentionally excluded from the repository.
-
-## License and attribution
-
-NeXtep is licensed under the [Apache License 2.0](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party attribution and design provenance.
-
-## Acknowledgements
-
-Special thanks to **Smartisan OS OneStep** for the product concept and interaction inspiration behind this project.
-
-Copyright 2026 lujinxin.
-
 ## Feedback group
 
 QQ group: **1128561895**
@@ -196,3 +182,13 @@ QQ group: **1128561895**
 <p align="center">
   <img src="assets/qq-group-qrcode.jpg" alt="NeXtep QQ feedback group QR code" width="360">
 </p>
+
+## Acknowledgements
+
+Special thanks to **Smartisan OS OneStep** for the product concept and interaction inspiration behind this project.
+
+## License and attribution
+
+NeXtep is licensed under the [Apache License 2.0](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for third-party attribution and design provenance.
+
+Copyright 2026 lujinxin.
